@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退票手续费智能解读</title>
+<style>
+  :root {
+    --primary: #1677ff;
+    --primary-hover: #4096ff;
+    --success: #52c41a;
+    --warning: #fa8c16;
+    --danger: #ff4d4f;
+    --bg: #f5f7fa;
+    --card-bg: #fff;
+    --text: #1f1f1f;
+    --text-secondary: #666;
+    --text-muted: #999;
+    --border: #e8e8e8;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh;
+  }
+  .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+  .header { text-align: center; padding: 24px 0 16px; }
+  .header h1 { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--primary), #69b1ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+  .card { background: var(--card-bg); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 18px; }
+
+  .toggle-group { display: flex; background: #f0f2f5; border-radius: 8px; padding: 3px; margin-bottom: 16px; }
+  .toggle-btn { flex: 1; padding: 8px 0; border: none; background: transparent; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text-secondary); transition: all 0.2s; }
+  .toggle-btn.active { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+  .form-label .required { color: var(--danger); margin-left: 2px; }
+  .form-input { width: 100%; height: 42px; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; color: var(--text); background: #fafbfc; transition: border-color 0.2s, box-shadow 0.2s; outline: none; }
+  .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,119,255,0.1); background: #fff; }
+  .form-input.error { border-color: var(--danger); }
+  .form-input:disabled { background: #f0f2f5; color: var(--text-secondary); }
+  .form-error { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
+  .form-error.show { display: block; }
+
+  textarea.form-input { height: auto; min-height: 120px; padding: 10px 12px; resize: vertical; font-family: inherit; line-height: 1.6; }
+
+  .price-wrapper { position: relative; }
+  .price-wrapper .prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted); font-weight: 500; }
+  .price-wrapper .form-input { padding-left: 44px; }
+
+  select.form-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+  .btn-primary { width: 100%; height: 44px; border: none; border-radius: 8px; background: var(--primary); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:disabled { background: #b3d4ff; cursor: not-allowed; }
+
+  .btn-sm { height: 32px; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer; background: #fff; color: var(--text-secondary); white-space: nowrap; transition: all 0.2s; }
+  .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-sm.active-preset { border-color: var(--primary); color: var(--primary); background: #f0f5ff; }
+
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  .more-toggle { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--primary); cursor: pointer; background: none; border: none; padding: 4px 0; margin-bottom: 12px; }
+  .more-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+  .more-toggle.expanded .arrow { transform: rotate(90deg); }
+  .more-fields { display: none; }
+  .more-fields.show { display: block; }
+
+  .flight-policy-section { display: none; }
+  .flight-policy-section.show { display: block; }
+  .hint-text { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+
+  /* Order recognition section */
+  .order-section { display: none; }
+  .order-section.show { display: block; }
+
+  .parsed-fields { display: none; margin-top: 12px; padding: 10px 14px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; font-size: 13px; color: #389e0d; }
+  .parsed-fields.show { display: block; }
+  .parsed-fields .field { margin: 3px 0; }
+  .parsed-fields .field strong { color: #237804; }
+
+  /* spinner */
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-dark { border-color: rgba(22,119,255,0.15); border-top-color: var(--primary); }
+
+  /* Results */
+  .result-section { display: none; }
+  .result-section.show { display: block; }
+
+  .fee-summary { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; }
+  .fee-main { text-align: center; flex: 1; }
+  .fee-main .amount { font-size: 36px; font-weight: 700; color: var(--primary); }
+  .fee-main .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .fee-divider { width: 1px; height: 50px; background: var(--border); }
+  .fee-detail { text-align: center; flex: 1; }
+  .fee-detail .amount { font-size: 28px; font-weight: 600; color: var(--danger); }
+  .fee-detail .amount.zero { color: var(--success); }
+  .fee-detail .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .fee-detail .percent { font-size: 13px; color: var(--warning); font-weight: 500; }
+
+  .rule-ref { margin-top: 12px; padding: 10px 14px; background: #fffbe6; border-radius: 8px; font-size: 12px; color: #ad8b00; border: 1px solid #ffe58f; }
+  .reasoning { margin-top: 16px; }
+  .reasoning-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 10px 0; font-size: 14px; font-weight: 500; color: var(--text-secondary); }
+  .reasoning-header .arrow { transition: transform 0.2s; }
+  .reasoning-header.expanded .arrow { transform: rotate(180deg); }
+  .reasoning-steps { display: none; padding: 12px; background: #fafbfc; border-radius: 8px; font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
+  .reasoning-steps.show { display: block; }
+  .reasoning-steps .step { padding: 4px 0; padding-left: 8px; border-left: 2px solid var(--primary); margin-bottom: 6px; }
+  .explanation-block { margin-top: 16px; padding: 16px; background: linear-gradient(135deg, #f0f5ff, #e6f4ff); border-radius: 10px; font-size: 14px; line-height: 1.8; color: var(--text); }
+  .explanation-block .quote-icon { font-size: 24px; color: var(--primary); line-height: 1; margin-bottom: 6px; }
+  .disclaimer { margin-top: 12px; font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.6; }
+  .error-banner { display: none; padding: 12px 16px; background: #fff2f0; border: 1px solid #ffccc7; border-radius: 8px; color: var(--danger); font-size: 13px; margin-bottom: 12px; }
+  .error-banner.show { display: block; }
+  .parsed-rules { margin-top: 8px; padding: 8px 12px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; font-size: 12px; color: #389e0d; display: none; }
+  .parsed-rules.show { display: block; }
+  .parsed-rules .tier { margin: 2px 0; }
+
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .result-section.show .card { animation: fadeInUp 0.35s ease-out; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>退票手续费智能解读</h1>
+    <p>内置12306规则 · 航司客规录入 · AI订单识别 · 一键计算</p>
+  </div>
+
+  <!-- Mode Toggle: Manual vs Order Recognition -->
+  <div class="card">
+    <div class="card-title"><span class="icon">📋</span>输入模式</div>
+    <div class="toggle-group" id="modeToggle">
+      <button class="toggle-btn active" data-mode="manual">✏️ 手动输入</button>
+      <button class="toggle-btn" data-mode="order">🤖 AI 订单识别</button>
+    </div>
+
+    <!-- === AI Order Recognition === -->
+    <div class="order-section" id="orderSection">
+      <div class="form-group">
+        <label class="form-label">粘贴订单信息<span class="required">*</span></label>
+        <div class="form-group">
+        <label class="form-label">订单号<span class="required">*</span></label>
+        <input type="text" class="form-input" id="orderNumberInput" placeholder="输入订单号，如 TM9260523224956628124">
+        <div class="hint-text">输入订单号后点击识别，AI 自动查询订单详情</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">或粘贴订单文本</label>
+        <textarea class="form-input" id="orderText" rows="4"
+          placeholder="从12306/航司APP复制订单详情粘贴到这里：
+订单号：E123456789
+车次：G123次  出发：2026年5月28日 08:00
+席别：二等座  票价：553.00元"></textarea>
+      </div>
+      <div class="hint-text">优先使用订单号查询（需客服Agent支持）。如无订单系统对接，可粘贴订单文本由AI提取。</div>
+      </div>
+      <button class="btn-primary" id="parseBtn">
+        🔍 AI 识别订单信息
+      </button>
+      <div class="parsed-fields" id="parsedFields"></div>
+    </div>
+
+    <!-- === Manual Input Form === -->
+    <div id="manualSection">
+      <div class="toggle-group" id="ticketTypeToggle">
+        <button class="toggle-btn active" data-type="train">🚄 火车票</button>
+        <button class="toggle-btn" data-type="flight">✈️ 机票</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">原票价<span class="required">*</span></label>
+        <div class="price-wrapper">
+          <span class="prefix">CNY</span>
+          <input type="number" class="form-input" id="price" placeholder="请输入票价" min="1" step="0.01">
+        </div>
+        <div class="form-error" id="priceError">请输入有效的票价</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">计划出发时间<span class="required">*</span></label>
+        <input type="datetime-local" class="form-input" id="departureTime">
+        <div class="form-error" id="depError">请选择出发时间</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">退票申请时间<span class="required">*</span></label>
+        <input type="datetime-local" class="form-input" id="refundTime">
+        <div class="form-error" id="refundError">退票时间不能晚于出发时间</div>
+      </div>
+
+      <button class="more-toggle" id="moreToggle">
+        <span class="arrow">▶</span> 更多选项
+      </button>
+      <div class="more-fields" id="moreFields">
+        <div class="form-group">
+          <label class="form-label">航司 / 车次</label>
+          <input type="text" class="form-input" id="flightNumber" placeholder="如 CA1234 / G123">
+        </div>
+        <div class="form-group">
+          <label class="form-label">舱位 / 座席等级</label>
+          <select class="form-input" id="fareClass"><option value="">请选择（可选）</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">乘客类型</label>
+          <select class="form-input" id="passengerType">
+            <option value="adult">成人</option>
+            <option value="child">儿童</option>
+            <option value="student">学生</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flight policy (shared) -->
+    <div class="flight-policy-section" id="flightPolicySection">
+      <div class="form-group">
+        <label class="form-label">航司退改签客规<span class="required">*</span></label>
+        <div class="preset-row" id="presetRow">
+          <button class="btn-sm preset-btn" data-preset="国航">国航</button>
+          <button class="btn-sm preset-btn" data-preset="东航">东航</button>
+          <button class="btn-sm preset-btn" data-preset="南航">南航</button>
+          <button class="btn-sm preset-btn" data-preset="海航">海航</button>
+          <button class="btn-sm preset-btn" data-preset="春秋">春秋</button>
+          <button class="btn-sm preset-btn" data-preset="通用">通用</button>
+        </div>
+        <textarea class="form-input" id="flightPolicy" rows="5"
+          placeholder="请粘贴或输入航司退票规则，格式示例：
+起飞前24小时以上：收取票价5%手续费
+起飞前2小时至24小时：收取票价10%手续费
+起飞前不足2小时：收取票价20%手续费"></textarea>
+        <div class="hint-text">输入时间节点和对应费率。也可点击上方按钮快速填入常见航司规则。</div>
+      </div>
+      <div class="parsed-rules" id="parsedRules"></div>
+    </div>
+
+    <button class="btn-primary" id="submitBtn">🔍 计算退票手续费</button>
+  </div>
+
+  <!-- API Settings -->
+  <div class="card">
+    <div class="card-title"><span class="icon">⚙️</span>API 连接设置</div>
+    <div class="form-group">
+      <label class="form-label">CoffeeClaw Session Cookie<span class="required">*</span></label>
+      <input type="text" class="form-input" id="sessionCookie" placeholder="coffeeclaw_session=...">
+      <div class="hint-text">从浏览器获取：打开 <code>http://59.110.155.133:7301/</code> 登录后，在开发者工具 → Application → Cookies 中复制 <code>coffeeclaw_session</code> 的值，格式为 <code>coffeeclaw_session=xxx</code></div>
+    </div>
+    <div style="display:none">
+      <input type="text" class="form-input" id="apiUrl" value="">
+    </div>
+  </div>
+
+  <!-- Error Banner -->
+  <div class="error-banner" id="errorBanner"><span id="errorMsg"></span></div>
+
+  <!-- Loading -->
+  <div class="card" id="loadingCard" style="display:none; text-align:center; padding:32px;">
+    <div class="spinner spinner-dark"></div>
+    <div style="font-size:14px;color:var(--text-secondary);margin-top:12px;" id="loadingText">AI 正在识别订单信息...</div>
+  </div>
+
+  <!-- Results -->
+  <div class="result-section" id="resultSection">
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span>退票费用明细</div>
+      <div class="fee-summary">
+        <div class="fee-main"><div class="amount" id="refundAmount">--</div><div class="label">应退金额（元）</div></div>
+        <div class="fee-divider"></div>
+        <div class="fee-detail"><div class="amount" id="feeAmount">--</div><div class="label">手续费（元）</div><div class="percent" id="feePercent"></div></div>
+      </div>
+      <div class="rule-ref" id="ruleRef"></div>
+      <div class="reasoning" id="reasoningBlock">
+        <div class="reasoning-header expanded" id="reasoningHeader">📐 详细计算过程 <span class="arrow">▼</span></div>
+        <div class="reasoning-steps show" id="reasoningSteps"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">💡</span>智能解读</div>
+      <div class="explanation-block"><div class="quote-icon">"</div><div id="explanationText"></div></div>
+    </div>
+    <div class="disclaimer">⚠️ 火车票规则依据12306官方发布。机票规则基于您输入的客规信息。AI识别结果仅供参考。实际退票费以官方为准。</div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ============ 12306 Train Refund Rules ============
+  const TRAIN_RULES = {
+    name: '中国铁路12306',
+    tiers: [
+      { minHours: 192, feeRate: 0,    desc: '开车前8天（含）以上',        detail: '距开车前8天（192小时）及以上退票，免收退票费' },
+      { minHours: 48,  feeRate: 0.05, desc: '开车前48小时~8天以内',      detail: '距开车前48小时（含）至8天以内退票，收取票价5%手续费（最低2元）' },
+      { minHours: 24,  feeRate: 0.10, desc: '开车前24小时~48小时以内',   detail: '距开车前24小时（含）至48小时以内退票，收取票价10%手续费' },
+      { minHours: 0,   feeRate: 0.20, desc: '开车前不足24小时',          detail: '距开车前不足24小时退票，收取票价20%手续费' }
+    ],
+    minFee: 2
+  };
+
+  const AIRLINE_PRESETS = {
+    '国航': `国航（CA）国内客票退票规则：
+起飞前24小时以上：收取票价5%手续费（最低50元）
+起飞前2小时至24小时：收取票价10%手续费
+起飞前不足2小时：收取票价20%手续费
+特价票（舱位代码L/N/K等）：起飞前24小时以上退票收取50%手续费，24小时内不退不改
+商务舱/头等舱全价：免收退票费`,
+    '东航': `东航（MU）国内客票退票规则：
+起飞前24小时以上：收取票价5%手续费
+起飞前2小时至24小时：收取票价10%手续费
+起飞前不足2小时：收取票价20%手续费
+超级经济舱/商务舱：退票费为经济舱标准的50%
+特价票（T/V/G舱）：不退不改`,
+    '南航': `南航（CZ）国内客票退票规则：
+起飞前24小时以上：收取票价5%手续费
+起飞前24小时内：收取票价10%手续费
+起飞后：收取票价20%手续费
+明珠经济舱：退票费减半
+特价票（R/U/E舱）：按票面价50%收取退票费`,
+    '海航': `海航（HU）国内客票退票规则：
+起飞前24小时以上：收取票价5%手续费
+起飞前2小时至24小时：收取票价10%手续费
+起飞前不足2小时：收取票价20%手续费
+商务舱全价：免收退票费
+特价票：按票面价30%收取退票费`,
+    '春秋': `春秋航空（9C）国内客票退票规则：
+起飞前72小时以上：收取票价10%手续费
+起飞前24小时至72小时：收取票价20%手续费
+起飞前不足24小时：收取票价30%手续费
+商务经济座：起飞前24小时以上10%，不足24小时20%
+特价票：不退不改，仅退未使用的机建费+燃油费`,
+    '通用': `通用国内机票退票规则（参考）：
+起飞前24小时以上：收取票价5%手续费
+起飞前2小时至24小时：收取票价10%手续费
+起飞前不足2小时：收取票价20%手续费
+特价/折扣票手续费可能更高，请以实际出票时的退改签规定为准。`
+  };
+
+  // ============ DOM Refs ============
+  const $ = s => document.querySelector(s);
+  const modeToggle = $('#modeToggle');
+  const orderSection = $('#orderSection');
+  const manualSection = $('#manualSection');
+  const orderNumberInput = $('#orderNumberInput');
+  const orderText = $('#orderText');
+  const parseBtn = $('#parseBtn');
+  const parsedFields = $('#parsedFields');
+  const ticketTypeToggle = $('#ticketTypeToggle');
+  const priceInput = $('#price');
+  const departureInput = $('#departureTime');
+  const refundInput = $('#refundTime');
+  const moreToggle = $('#moreToggle');
+  const moreFields = $('#moreFields');
+  const fareClassSelect = $('#fareClass');
+  const submitBtn = $('#submitBtn');
+  const errorBanner = $('#errorBanner');
+  const errorMsg = $('#errorMsg');
+  const loadingCard = $('#loadingCard');
+  const loadingText = $('#loadingText');
+  const resultSection = $('#resultSection');
+  const refundAmountEl = $('#refundAmount');
+  const feeAmountEl = $('#feeAmount');
+  const feePercentEl = $('#feePercent');
+  const ruleRef = $('#ruleRef');
+  const reasoningHeader = $('#reasoningHeader');
+  const reasoningSteps = $('#reasoningSteps');
+  const reasoningBlock = $('#reasoningBlock');
+  const explanationText = $('#explanationText');
+  const flightPolicySection = $('#flightPolicySection');
+  const flightPolicyInput = $('#flightPolicy');
+  const parsedRules = $('#parsedRules');
+  const presetRow = $('#presetRow');
+  const apiUrlInput = $('#apiUrl');
+  const sessionCookieInput = $('#sessionCookie');
+
+  let mode = 'manual';
+  let ticketType = 'train';
+
+  // ============ Init ============
+  function init() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    refundInput.value = now.toISOString().slice(0, 16);
+
+    restoreState();
+    updateFareClassOptions();
+    updateFlightPolicyVisibility();
+    updateModeVisibility();
+    bindEvents();
+  }
+
+  function restoreState() {
+    const saved = localStorage.getItem('ticket_refund_state_v2');
+    if (!saved) return;
+    try {
+      const s = JSON.parse(saved);
+      if (s.apiUrl) apiUrlInput.value = s.apiUrl;
+      if (s.sessionCookie) sessionCookieInput.value = s.sessionCookie;
+      if (s.price) priceInput.value = s.price;
+      if (s.departureTime) departureInput.value = s.departureTime;
+      if (s.ticketType) { ticketType = s.ticketType; updateTicketTypeUI(); }
+      if (s.fareClass) fareClassSelect.value = s.fareClass;
+      if (s.passengerType) $('#passengerType').value = s.passengerType;
+      if (s.flightNumber) $('#flightNumber').value = s.flightNumber;
+      if (s.flightPolicy) flightPolicyInput.value = s.flightPolicy;
+      if (s.mode) { mode = s.mode; updateModeUI(); }
+    } catch(e) {}
+  }
+
+  function saveState() {
+    localStorage.setItem('ticket_refund_state_v2', JSON.stringify({
+      mode,
+      ticketType,
+      apiUrl: apiUrlInput.value,
+      sessionCookie: sessionCookieInput.value,
+      price: priceInput.value,
+      departureTime: departureInput.value,
+      fareClass: fareClassSelect.value,
+      passengerType: $('#passengerType').value,
+      flightNumber: $('#flightNumber').value,
+      flightPolicy: flightPolicyInput.value
+    }));
+  }
+
+  function bindEvents() {
+    modeToggle.addEventListener('click', e => {
+      const btn = e.target.closest('.toggle-btn');
+      if (!btn) return;
+      mode = btn.dataset.mode;
+      updateModeUI();
+      updateModeVisibility();
+      saveState();
+    });
+
+    ticketTypeToggle.addEventListener('click', e => {
+      const btn = e.target.closest('.toggle-btn');
+      if (!btn) return;
+      ticketType = btn.dataset.type;
+      updateTicketTypeUI();
+      updateFareClassOptions();
+      updateFlightPolicyVisibility();
+      saveState();
+    });
+
+    moreToggle.addEventListener('click', () => {
+      moreToggle.classList.toggle('expanded');
+      moreFields.classList.toggle('show');
+    });
+
+    submitBtn.addEventListener('click', handleCalculate);
+    parseBtn.addEventListener('click', handleParseOrder);
+
+    [priceInput, departureInput, fareClassSelect, $('#passengerType'), $('#flightNumber'), flightPolicyInput, apiUrlInput, sessionCookieInput].forEach(el => {
+      if (el) el.addEventListener('change', saveState);
+    });
+
+    flightPolicyInput.addEventListener('input', () => { if (ticketType === 'flight') previewFlightRules(); });
+    reasoningHeader.addEventListener('click', () => {
+      reasoningHeader.classList.toggle('expanded');
+      reasoningSteps.classList.toggle('show');
+    });
+
+    presetRow.addEventListener('click', e => {
+      const btn = e.target.closest('.preset-btn');
+      if (!btn) return;
+      const name = btn.dataset.preset;
+      if (AIRLINE_PRESETS[name]) {
+        flightPolicyInput.value = AIRLINE_PRESETS[name];
+        previewFlightRules();
+        saveState();
+      }
+      presetRow.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active-preset'));
+      btn.classList.add('active-preset');
+    });
+  }
+
+  function updateModeUI() {
+    modeToggle.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  }
+
+  function updateTicketTypeUI() {
+    ticketTypeToggle.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.type === ticketType));
+  }
+
+  function updateModeVisibility() {
+    if (mode === 'order') {
+      orderSection.classList.add('show');
+      manualSection.style.display = 'none';
+      parseBtn.style.display = '';
+    } else {
+      orderSection.classList.remove('show');
+      manualSection.style.display = '';
+      parseBtn.style.display = 'none';
+    }
+  }
+
+  function updateFareClassOptions() {
+    const trainOptions = [
+      { value: '', text: '请选择（可选）' },
+      { value: 'second_class', text: '二等座' },
+      { value: 'first_class', text: '一等座' },
+      { value: 'business_class', text: '商务座' },
+      { value: 'soft_sleeper', text: '软卧' },
+      { value: 'hard_sleeper', text: '硬卧' },
+      { value: 'hard_seat', text: '硬座' },
+      { value: 'standing', text: '无座' }
+    ];
+    const flightOptions = [
+      { value: '', text: '请选择（可选）' },
+      { value: 'economy', text: '经济舱' },
+      { value: 'premium_economy', text: '超级经济舱' },
+      { value: 'business', text: '商务舱' },
+      { value: 'first', text: '头等舱' }
+    ];
+    const options = ticketType === 'train' ? trainOptions : flightOptions;
+    const cur = fareClassSelect.value;
+    fareClassSelect.innerHTML = options.map(o => `<option value="${o.value}" ${o.value === cur ? 'selected' : ''}>${o.text}</option>`).join('');
+  }
+
+  function updateFlightPolicyVisibility() {
+    flightPolicySection.classList.toggle('show', ticketType === 'flight');
+  }
+
+  // ============ Order Parsing (CoffeeClaw API) ============
+  function getApiBase() {
+    // Use relative URL so requests go through the local proxy (same-origin, no CORS)
+    return '';
+  }
+
+  function getSessionHeader() {
+    const manual = sessionCookieInput.value.trim();
+    return manual || null;
+  }
+
+  function generateId() {
+    return 'refund-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  async function callCoffeeClawStream(message, agentId) {
+    const base = getApiBase();
+    const url = base.replace(/\/+$/, '') + '/api/v1/chat/stream';
+
+    const body = JSON.stringify({
+      message: message,
+      agent_id: agentId || 'default_agent',
+      agent_type: 'agentic',
+      model: 'minimax/MiniMax-M2.7-highspeed',
+      conversation_id: generateId()
+    });
+
+    const headers = { 'Content-Type': 'application/json; charset=utf-8' };
+    const sessionCookie = getSessionHeader();
+    if (sessionCookie) {
+      headers['X-Session-Cookie'] = sessionCookie;
+    }
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      credentials: 'include',
+      mode: 'cors'
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      throw new Error(errText || 'API 请求失败 (HTTP ' + resp.status + ')');
+    }
+
+    // Parse SSE stream - proper event block parsing
+    const text = await resp.text();
+    const blocks = text.split(/\r?\n\r?\n/);
+    let fullContent = '';
+    let toolResults = [];
+
+    for (const block of blocks) {
+      if (!block.trim()) continue;
+      const dataLines = [];
+      for (const line of block.split(/\r?\n/)) {
+        if (line.startsWith('data: ')) {
+          dataLines.push(line.slice(6).trimStart());
+        }
+      }
+      const dataStr = dataLines.join('\n');
+      if (!dataStr || dataStr.trim() === '[DONE]') continue;
+
+      try {
+        const chunk = JSON.parse(dataStr);
+        const delta = chunk.choices?.[0]?.delta;
+        if (!delta) continue;
+
+        // Text content
+        if (delta.content) {
+          fullContent += delta.content;
+        }
+        // Tool results (MCP order-system)
+        if (delta.tool_status) {
+          const ts = delta.tool_status;
+          if (ts.phase === 'end' && ts.result) {
+            for (const item of ts.result) {
+              if (item.type === 'text' && item.text) {
+                try {
+                  const parsed = JSON.parse(item.text);
+                  toolResults.push({ name: ts.name, arguments: ts.arguments, data: parsed });
+                } catch(e) {
+                  toolResults.push({ name: ts.name, arguments: ts.arguments, raw: item.text });
+                }
+              }
+            }
+          }
+        }
+      } catch(e) {}
+    }
+    return { content: fullContent, toolResults: toolResults };
+  }
+
+  async function handleParseOrder() {
+    const orderNumber = orderNumberInput.value.trim();
+    const textPaste = orderText.value.trim();
+
+    if (!orderNumber && !textPaste) {
+      showBanner('请输入订单号或粘贴订单文本');
+      return;
+    }
+
+    clearErrors();
+    resultSection.classList.remove('show');
+    parsedFields.classList.remove('show');
+    loadingCard.style.display = 'block';
+    errorBanner.classList.remove('show');
+    parseBtn.disabled = true;
+
+    try {
+      let result;
+
+      if (orderNumber) {
+        loadingText.textContent = 'AI 正在通过客服系统查询订单...';
+        result = await callCoffeeClawStream(
+          '请查询订单 ' + orderNumber + ' 的详细信息',
+          'agent_customer-smart-agent'
+        );
+      } else {
+        loadingText.textContent = 'AI 正在识别订单信息...';
+        result = await callCoffeeClawStream(
+          '你是一个订单信息提取助手。请从以下订单文本中提取关键信息，严格按照JSON格式输出。如果字段不存在则填null。\n\n{\n  "ticket_type": "train 或 flight",\n  "price": 数字（票价金额，仅数字不含符号）,\n  "departure_time": "ISO格式时间 YYYY-MM-DDTHH:mm",\n  "flight_number": "车次或航班号（如G123/CA1234）",\n  "fare_class": "座席或舱位描述",\n  "from_station": "出发站/城市",\n  "to_station": "到达站/城市",\n  "order_number": "订单号",\n  "raw_summary": "一句话总结订单信息"\n}\n\n订单文本：\n' + textPaste,
+          'default_agent'
+        );
+      }
+
+      // Check for tool results (MCP order-system data) first
+      const orderData = extractOrderFromToolResults(result.toolResults);
+
+      if (orderData) {
+        fillFormFromOrderData(orderData);
+      } else {
+        // Fallback: try parsing AI text response as JSON
+        const parsed = parseAIResponse(result.content);
+        if (parsed) {
+          fillFormFromParsed(parsed);
+        } else if (result.content) {
+          parsedFields.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">AI 查询结果</div>' +
+            '<div style="font-size:13px;line-height:1.6;">' + escapeHtml(result.content.substring(0, 500)) + '</div>';
+          parsedFields.classList.add('show');
+          tryExtractFromText(result.content);
+        }
+      }
+
+      if (!orderData && !parseAIResponse(result.content)) {
+        parsedFields.classList.add('show');
+      }
+
+      // Switch to manual mode for review
+      mode = 'manual';
+      updateModeUI();
+      updateModeVisibility();
+      saveState();
+      submitBtn.scrollIntoView({ behavior: 'smooth' });
+
+    } catch (err) {
+      const msg = err.message || '未知错误';
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        showBanner('请求失败，请确认已在浏览器登录 CoffeeClaw，并通过 localhost 访问此页面');
+      } else {
+        showBanner('订单识别失败：' + msg);
+      }
+    } finally {
+      loadingCard.style.display = 'none';
+      parseBtn.disabled = false;
+    }
+  }
+
+  function extractOrderFromToolResults(toolResults) {
+    if (!toolResults || toolResults.length === 0) return null;
+    for (const tr of toolResults) {
+      if (tr.name === 'queryOrderDetail' && tr.data) {
+        const d = tr.data;
+        // Handle nested structure
+        const summary = d.summary || '';
+        const detail = d.data || d;
+        const orderInfo = detail.detail || detail;
+        const ticketInfo = orderInfo.ticketInfo || {};
+        const ticketList = ticketInfo.ticketList || [];
+        const dealInfo = orderInfo.dealInfo || {};
+        const orderMeta = orderInfo.orderInfo || {};
+
+        // Find first valid ticket
+        const firstTicket = ticketList[0] || {};
+
+        return {
+          order_number: detail.orderId || d.orderId || '',
+          ticket_type: (detail.orderType || '').toUpperCase().includes('FLIGHT') ? 'flight' : 'train',
+          price: parseFloat(ticketInfo.ticketAllPrice || ticketInfo.orderAllPrice || 0),
+          departure_time: firstTicket.departTime || '',
+          flight_number: firstTicket.trainNo || firstTicket.flightNo || '',
+          fare_class: firstTicket.seatName || firstTicket.cabinClass || '',
+          from_station: firstTicket.departName || '',
+          to_station: firstTicket.arriveName || '',
+          passenger_type: firstTicket.ticketType || '',
+          raw_summary: summary || '订单号 ' + (detail.orderId || '') + '，共' + ticketList.length + '张票'
+        };
+      }
+    }
+    return null;
+  }
+
+  function fillFormFromOrderData(data) {
+    if (data.ticket_type) {
+      ticketType = data.ticket_type;
+      updateTicketTypeUI();
+      updateFareClassOptions();
+      updateFlightPolicyVisibility();
+    }
+    if (data.price) priceInput.value = data.price;
+    if (data.departure_time) {
+      try {
+        const dt = new Date(data.departure_time);
+        if (!isNaN(dt.getTime())) {
+          const tzOffset = dt.getTimezoneOffset();
+          const local = new Date(dt.getTime() - tzOffset * 60000);
+          departureInput.value = local.toISOString().slice(0, 16);
+        }
+      } catch(e) {}
+    }
+    if (data.flight_number) $('#flightNumber').value = data.flight_number;
+    if (data.fare_class) {
+      const opts = fareClassSelect.options;
+      for (const opt of opts) {
+        if (opt.text.includes(data.fare_class) || data.fare_class.includes(opt.text)) {
+          fareClassSelect.value = opt.value;
+          break;
+        }
+      }
+    }
+    if (data.passenger_type && data.passenger_type.includes('儿童')) {
+      $('#passengerType').value = 'child';
+    }
+
+    const lines = [];
+    if (data.raw_summary) lines.push('<div class="field">' + escapeHtml(data.raw_summary) + '</div>');
+    if (data.order_number) lines.push('<div class="field"><strong>订单号：</strong>' + escapeHtml(data.order_number) + '</div>');
+    if (data.ticket_type) lines.push('<div class="field"><strong>票种：</strong>' + (data.ticket_type === 'flight' ? '机票' : '火车票') + '</div>');
+    if (data.price) lines.push('<div class="field"><strong>票价：</strong>CNY ' + data.price + '</div>');
+    if (data.departure_time) lines.push('<div class="field"><strong>出发时间：</strong>' + escapeHtml(String(data.departure_time)) + '</div>');
+    if (data.flight_number) lines.push('<div class="field"><strong>车次/航班：</strong>' + escapeHtml(data.flight_number) + '</div>');
+    if (data.from_station || data.to_station) lines.push('<div class="field"><strong>行程：</strong>' + escapeHtml(data.from_station || '') + ' → ' + escapeHtml(data.to_station || '') + '</div>');
+
+    parsedFields.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">订单识别结果（已自动填入下方表单）</div>' + lines.join('');
+    parsedFields.classList.add('show');
+  }
+
+  function fillFormFromParsed(parsed) {
+    if (parsed.ticket_type) {
+      ticketType = parsed.ticket_type === 'flight' ? 'flight' : 'train';
+      updateTicketTypeUI();
+      updateFareClassOptions();
+      updateFlightPolicyVisibility();
+    }
+    if (parsed.price) priceInput.value = parsed.price;
+    if (parsed.departure_time) {
+      try {
+        const dt = new Date(parsed.departure_time);
+        if (!isNaN(dt.getTime())) {
+          const tzOffset = dt.getTimezoneOffset();
+          const local = new Date(dt.getTime() - tzOffset * 60000);
+          departureInput.value = local.toISOString().slice(0, 16);
+        }
+      } catch(e) {}
+    }
+    if (parsed.flight_number) $('#flightNumber').value = parsed.flight_number;
+    if (parsed.fare_class) {
+      const opts = fareClassSelect.options;
+      for (const opt of opts) {
+        if (opt.text.includes(parsed.fare_class) || parsed.fare_class.includes(opt.text)) {
+          fareClassSelect.value = opt.value;
+          break;
+        }
+      }
+    }
+    if (parsed.passenger_type && parsed.passenger_type.includes('儿童')) {
+      $('#passengerType').value = 'child';
+    }
+
+    const lines = [];
+    if (parsed.raw_summary) lines.push(`<div class="field">📝 ${escapeHtml(parsed.raw_summary)}</div>`);
+    if (parsed.order_number) lines.push(`<div class="field"><strong>订单号：</strong>${escapeHtml(parsed.order_number)}</div>`);
+    if (parsed.ticket_type) lines.push(`<div class="field"><strong>票种：</strong>${parsed.ticket_type === 'flight' ? '机票' : '火车票'}</div>`);
+    if (parsed.price) lines.push(`<div class="field"><strong>票价：</strong>CNY ${parsed.price}</div>`);
+    if (parsed.departure_time) lines.push(`<div class="field"><strong>出发时间：</strong>${escapeHtml(String(parsed.departure_time))}</div>`);
+    if (parsed.flight_number) lines.push(`<div class="field"><strong>车次/航班：</strong>${escapeHtml(parsed.flight_number)}</div>`);
+    if (parsed.from_station || parsed.to_station) lines.push(`<div class="field"><strong>行程：</strong>${escapeHtml(parsed.from_station || '')} → ${escapeHtml(parsed.to_station || '')}</div>`);
+
+    parsedFields.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">✅ AI 识别结果（已自动填入下方表单）</div>' + lines.join('');
+    parsedFields.classList.add('show');
+  }
+
+  function tryExtractFromText(text) {
+    // Try to extract price
+    const priceMatch = text.match(/票价[^\d]*(\d+(?:\.\d+)?)/);
+    if (priceMatch && !priceInput.value) {
+      priceInput.value = parseFloat(priceMatch[1]);
+    }
+    // Try to extract order number
+    const orderMatch = text.match(/订单号[：:\s]*([A-Za-z0-9]+)/);
+    if (orderMatch) {
+      // Already shown in raw result
+    }
+    // Try to detect ticket type
+    if (/机票|航班|航空|经济舱|商务舱/.test(text) && ticketType === 'train') {
+      ticketType = 'flight';
+      updateTicketTypeUI();
+      updateFareClassOptions();
+      updateFlightPolicyVisibility();
+    }
+    if (/火车|高铁|动车|车次|G\d|D\d/.test(text) && ticketType === 'flight') {
+      ticketType = 'train';
+      updateTicketTypeUI();
+      updateFareClassOptions();
+      updateFlightPolicyVisibility();
+    }
+  }
+
+  function parseAIResponse(text) {
+    if (!text) return null;
+    let jsonStr = text.trim();
+    // Strip markdown code fences
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```$/, '');
+    }
+    // Try to extract JSON block
+    const match = jsonStr.match(/\{[\s\S]*\}/);
+    if (match) jsonStr = match[0];
+    try {
+      return JSON.parse(jsonStr);
+    } catch(e) {
+      return null;
+    }
+  }
+
+  // ============ Flight Policy Parser ============
+  function parseFlightPolicy(text) {
+    const tiers = [];
+    const lines = text.split(/[\n\r]+/);
+    for (const line of lines) {
+      // "X小时以上...Y%"
+      let m = line.match(/(\d+(?:\.\d+)?)\s*(?:小时|个?小时|天)\s*以上.*?(\d+(?:\.\d+)?)\s*%/);
+      if (m) {
+        let hours = parseFloat(m[1]);
+        if (line.includes('天')) hours *= 24;
+        tiers.push({ minHours: hours, maxHours: Infinity, feeRate: parseFloat(m[2]) / 100 });
+        continue;
+      }
+      // "不足X小时...Y%"
+      m = line.match(/不足\s*(\d+(?:\.\d+)?)\s*(?:小时|个?小时|天).*?(\d+(?:\.\d+)?)\s*%/);
+      if (m) {
+        let hours = parseFloat(m[1]);
+        if (line.includes('天')) hours *= 24;
+        tiers.push({ minHours: 0, maxHours: hours, feeRate: parseFloat(m[2]) / 100 });
+        continue;
+      }
+      // "X(小时/天)至Y(小时/天)...Z%"
+      m = line.match(/(\d+(?:\.\d+)?)\s*(?:小时|个?小时|天)\s*至\s*(\d+(?:\.\d+)?)\s*(?:小时|个?小时|天).*?(\d+(?:\.\d+)?)\s*%/);
+      if (m) {
+        let h1 = parseFloat(m[1]), h2 = parseFloat(m[2]);
+        if (line.includes('天')) { h1 *= 24; h2 *= 24; }
+        tiers.push({ minHours: h2, maxHours: h1, feeRate: parseFloat(m[3]) / 100 });
+        continue;
+      }
+      // Simpler pattern: "起飞前X小时内...Y%" (X小时内 means within X hours)
+      m = line.match(/(\d+(?:\.\d+)?)\s*(?:小时|个?小时)\s*内.*?(\d+(?:\.\d+)?)\s*%/);
+      if (m) {
+        tiers.push({ minHours: 0, maxHours: parseFloat(m[1]), feeRate: parseFloat(m[2]) / 100 });
+      }
+    }
+    const seen = new Set();
+    const unique = tiers.filter(t => {
+      const key = `${t.minHours}-${t.maxHours}-${t.feeRate}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    unique.sort((a, b) => b.minHours - a.minHours);
+    return unique;
+  }
+
+  function previewFlightRules() {
+    const text = flightPolicyInput.value.trim();
+    if (!text) { parsedRules.classList.remove('show'); return; }
+    const tiers = parseFlightPolicy(text);
+    if (tiers.length === 0) { parsedRules.classList.remove('show'); return; }
+    parsedRules.innerHTML = '<strong>已识别规则：</strong>' + tiers.map(t => {
+      const range = t.maxHours === Infinity ? `${fmtHours(t.minHours)}以上` : t.minHours === 0 ? `不足${fmtHours(t.maxHours)}` : `${fmtHours(t.minHours)}至${fmtHours(t.maxHours)}`;
+      return `<div class="tier">• ${range} → 费率 ${(t.feeRate * 100).toFixed(0)}%</div>`;
+    }).join('');
+    parsedRules.classList.add('show');
+  }
+
+  function fmtHours(h) {
+    if (h >= 24 && h % 24 === 0) return (h / 24) + '天';
+    if (h >= 24) return Math.floor(h / 24) + '天' + (h % 24) + '小时';
+    return h + '小时';
+  }
+
+  // ============ Calculate ============
+  function handleCalculate() {
+    clearErrors();
+    if (!validate()) return;
+    saveState();
+
+    try {
+      const result = calculate();
+      renderResult(result);
+      resultSection.classList.add('show');
+      resultSection.scrollIntoView({ behavior: 'smooth' });
+    } catch (err) {
+      showBanner(err.message);
+    }
+  }
+
+  function validate() {
+    let valid = true;
+    clearErrors();
+
+    const price = parseFloat(priceInput.value);
+    if (!price || price <= 0) {
+      showFieldError('priceError', '请输入有效的票价');
+      priceInput.classList.add('error');
+      valid = false;
+    }
+    if (!departureInput.value) {
+      showFieldError('depError', '请选择出发时间');
+      departureInput.classList.add('error');
+      valid = false;
+    }
+    if (!refundInput.value) {
+      showFieldError('refundError', '请选择退票时间');
+      refundInput.classList.add('error');
+      valid = false;
+    }
+    if (departureInput.value && refundInput.value) {
+      if (new Date(refundInput.value) > new Date(departureInput.value)) {
+        showFieldError('refundError', '退票时间不能晚于出发时间');
+        refundInput.classList.add('error');
+        valid = false;
+      }
+    }
+    if (ticketType === 'flight' && !flightPolicyInput.value.trim()) {
+      showBanner('请输入航司退改签客规信息，或点击上方按钮选择预设规则');
+      valid = false;
+    }
+    return valid;
+  }
+
+  function calculate() {
+    const price = parseFloat(priceInput.value);
+    const departureTime = new Date(departureInput.value);
+    const refundTime = new Date(refundInput.value);
+    const hoursBefore = (departureTime - refundTime) / (1000 * 60 * 60);
+    const fareClassText = fareClassSelect.selectedOptions[0]?.text || '';
+    const passengerType = $('#passengerType').value;
+
+    if (ticketType === 'train') {
+      return calcTrain(price, hoursBefore, fareClassText, passengerType);
+    } else {
+      return calcFlight(price, hoursBefore, fareClassText, flightPolicyInput.value.trim());
+    }
+  }
+
+  function calcTrain(price, hoursBefore, fareClassText, passengerType) {
+    let tier = TRAIN_RULES.tiers[0];
+    for (const t of TRAIN_RULES.tiers) {
+      if (hoursBefore >= t.minHours) { tier = t; break; }
+    }
+    let effectivePrice = price;
+    if (passengerType === 'child') effectivePrice = price * 0.5;
+    let feeRate = tier.feeRate;
+    let feeAmount = Math.floor(effectivePrice * feeRate);
+    if (feeRate > 0 && feeAmount < TRAIN_RULES.minFee) feeAmount = TRAIN_RULES.minFee;
+    const refundAmount = Math.max(0, price - feeAmount);
+
+    const steps = [
+      `票种：火车票（${TRAIN_RULES.name}）`,
+      `原票价：CNY ${price.toFixed(2)}`,
+      passengerType === 'child' ? `乘客类型：儿童，有效票价按半价 = CNY ${effectivePrice.toFixed(2)}` : '',
+      passengerType === 'student' ? '乘客类型：学生，退票费率按普通票标准执行' : '',
+      `距出发：${fmtHours(hoursBefore)}（${hoursBefore.toFixed(1)} 小时）`,
+      `匹配规则：${tier.detail}`,
+      `计算：${effectivePrice.toFixed(2)} × ${(feeRate * 100).toFixed(0)}% = CNY ${feeAmount.toFixed(2)}（向下取整）`,
+      feeRate > 0 && feeAmount === TRAIN_RULES.minFee ? `手续费不足最低标准，按最低 CNY ${TRAIN_RULES.minFee} 收取` : '',
+      `应退金额：${price.toFixed(2)} - ${feeAmount.toFixed(2)} = CNY ${refundAmount.toFixed(2)}`
+    ].filter(Boolean);
+
+    let explanation;
+    if (feeRate === 0) {
+      explanation = `您好，您的火车票距出发还有${fmtHours(hoursBefore)}，根据铁路12306规定，开车前8天（含）以上退票免收手续费。全额票款 CNY ${price.toFixed(2)} 将原路退回。建议尽早操作以免错过免费退票窗口期。`;
+    } else {
+      explanation = `您好，您的火车票距出发还有${fmtHours(hoursBefore)}，根据铁路12306规定，${tier.desc}退票需收取票价${(feeRate * 100).toFixed(0)}%作为手续费。\n\n票价 CNY ${price.toFixed(2)}，手续费 = ${effectivePrice.toFixed(2)} × ${(feeRate * 100).toFixed(0)}% = CNY ${feeAmount.toFixed(2)}，应退 CNY ${refundAmount.toFixed(2)} 元。`;
+      if (hoursBefore < 48) explanation += '\n\n温馨提示：距开车时间较近，请尽快确定是否需要退票以减少损失。';
+    }
+    return { feeAmount, feeRate, refundAmount, ruleDesc: tier.detail, steps, explanation };
+  }
+
+  function calcFlight(price, hoursBefore, fareClassText, policyText) {
+    const tiers = parseFlightPolicy(policyText);
+    if (tiers.length === 0) throw new Error('无法识别客规信息，请检查格式后重试。');
+
+    let tier = tiers[0];
+    for (const t of tiers) {
+      if (hoursBefore >= t.minHours && hoursBefore <= t.maxHours) { tier = t; break; }
+    }
+    if (hoursBefore < tiers[tiers.length - 1].minHours) tier = tiers[tiers.length - 1];
+
+    const nonRefundable = /(?:特价票|折扣票|L\/N\/K|T\/V\/G|R\/U\/E).*不退不改/.test(policyText) && hoursBefore < 24;
+    const feeRate = nonRefundable ? 1.0 : tier.feeRate;
+    const feeAmount = nonRefundable ? price : Math.floor(price * feeRate);
+    const refundAmount = Math.max(0, price - feeAmount);
+
+    const appliedRange = tier.maxHours === Infinity ? `${fmtHours(tier.minHours)}以上`
+      : tier.minHours === 0 ? `不足${fmtHours(tier.maxHours)}`
+      : `${fmtHours(tier.minHours)}至${fmtHours(tier.maxHours)}`;
+
+    const steps = [
+      '票种：机票（客规手动输入）',
+      `原票价：CNY ${price.toFixed(2)}`,
+      fareClassText ? `舱位：${fareClassText}` : '',
+      `距出发：${fmtHours(hoursBefore)}（${hoursBefore.toFixed(1)} 小时）`,
+      '识别到的客规阶梯：',
+      ...tiers.map(t => {
+        const r = t.maxHours === Infinity ? `${fmtHours(t.minHours)}以上` : t.minHours === 0 ? `不足${fmtHours(t.maxHours)}` : `${fmtHours(t.minHours)}至${fmtHours(t.maxHours)}`;
+        return `  • ${r} → ${(t.feeRate * 100).toFixed(0)}%`;
+      }),
+      `匹配阶梯：${appliedRange}，费率 ${(feeRate * 100).toFixed(0)}%`,
+      nonRefundable ? '该票种属于不退不改范围，票款无法退还' : `计算：${price.toFixed(2)} × ${(feeRate * 100).toFixed(0)}% = CNY ${feeAmount.toFixed(2)}`,
+      `应退金额：CNY ${refundAmount.toFixed(2)}`
+    ].filter(Boolean);
+
+    let explanation;
+    if (nonRefundable) {
+      explanation = `您好，根据您提供的航司客规，该特价票属于"不退不改"范围，无法办理退票，票款 CNY ${price.toFixed(2)} 无法退还。建议联系航司客服确认是否有特殊退票通道，或考虑改签使用。`;
+    } else if (feeRate === 0) {
+      explanation = `您好，根据您提供的航司客规，距出发${fmtHours(hoursBefore)}退票免收手续费。全额票款 CNY ${price.toFixed(2)} 将原路退回。`;
+    } else {
+      explanation = `您好，根据您提供的航司客规，距出发${fmtHours(hoursBefore)}（匹配阶梯：${appliedRange}），退票手续费率为 ${(feeRate * 100).toFixed(0)}%。\n\n票价 CNY ${price.toFixed(2)} × ${(feeRate * 100).toFixed(0)}% = 手续费 CNY ${feeAmount.toFixed(2)}，应退 CNY ${refundAmount.toFixed(2)} 元。`;
+      if (hoursBefore < 2) explanation += '\n\n温馨提示：距起飞时间非常接近，请尽快操作退票！';
+    }
+    explanation += '\n\n（以上结果基于您手动输入的客规信息计算，实际费用以航空公司官方为准。）';
+    return { feeAmount, feeRate, refundAmount, ruleDesc: `用户输入客规：${appliedRange}，费率${(feeRate * 100).toFixed(0)}%`, steps, explanation };
+  }
+
+  // ============ Render ============
+  function renderResult(r) {
+    refundAmountEl.textContent = r.refundAmount.toFixed(2);
+    feeAmountEl.textContent = r.feeAmount.toFixed(2);
+    feeAmountEl.className = 'amount' + (r.feeAmount === 0 ? ' zero' : '');
+    feePercentEl.textContent = '费率 ' + (r.feeRate * 100).toFixed(0) + '%';
+    if (r.ruleDesc) { ruleRef.textContent = '📋 ' + r.ruleDesc; ruleRef.style.display = 'block'; }
+    else { ruleRef.style.display = 'none'; }
+    if (r.steps && r.steps.length) {
+      reasoningSteps.innerHTML = r.steps.map(s => `<div class="step">${escapeHtml(String(s))}</div>`).join('');
+      reasoningBlock.style.display = 'block';
+    }
+    explanationText.textContent = r.explanation || '';
+  }
+
+  // ============ Helpers ============
+  function showFieldError(id, msg) { const el = document.getElementById(id); if (el) { el.textContent = msg; el.classList.add('show'); } }
+  function showBanner(msg) { errorBanner.classList.add('show'); errorMsg.textContent = msg; }
+  function clearErrors() {
+    document.querySelectorAll('.form-error').forEach(e => e.classList.remove('show'));
+    document.querySelectorAll('.form-input.error').forEach(e => e.classList.remove('error'));
+    errorBanner.classList.remove('show');
+  }
+  function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+
+  init();
+})();
+</script>
+</body>
+</html>
