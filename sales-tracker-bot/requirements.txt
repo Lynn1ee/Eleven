@@ -1,0 +1,4 @@
+requests>=2.31
+python-dotenv>=1.0
+matplotlib>=3.8
+websocket-client>=1.0

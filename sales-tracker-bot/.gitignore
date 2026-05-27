@@ -1,0 +1,10 @@
+# 敏感信息
+.env
+
+# 运行时状态（每月不同，不需要提交）
+.processed_ids.json
+.state_*.json
+
+# Python 缓存
+__pycache__/
+*.pyc
