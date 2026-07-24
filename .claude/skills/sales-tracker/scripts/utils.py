@@ -1,7 +1,18 @@
 """工具函数：消息解析、数据提取、合计计算"""
 
 import re
-from datetime import datetime
+
+
+def _compute_value(expr: str) -> int:
+    """从算式文本中计算实际值。支持: '47', '32-5=27', '3+8', '3+5+2', '3+8=11'"""
+    expr = expr.strip()
+    m = re.search(r'[=：:]\s*(\d+)\s*$', expr)
+    if m:
+        return int(m.group(1))
+    if '+' in expr:
+        return sum(int(n) for n in re.findall(r'\d+', expr))
+    m = re.search(r'(\d+)', expr)
+    return int(m.group(1)) if m else 0
 
 
 def extract_table1_data(text: str) -> dict:
@@ -12,17 +23,18 @@ def extract_table1_data(text: str) -> dict:
     """
     result = {"拼多多火车票": 0, "拼多多机票": 0, "千牛": 0, "抖音": 0, "备注": ""}
 
+    _calc_expr = r"\s*[=：:]*\s*(\d+(?:\s*[+\-]\s*\d+)*(?:\s*[=：:]\s*\d+)?)"
     patterns = {
-        "拼多多火车票": r"(?:拼多多火车票|火车票拼多多)\s*(\d+)",
-        "拼多多机票": r"(?:拼多多机票|机票拼多多)\s*(\d+)",
-        "千牛": r"千牛\s*(\d+)",
-        "抖音": r"抖音\s*(\d+)",
+        "拼多多火车票": r"(?:(?:拼多多|多多|[Pp][Dd][Dd])\s*火车(?:票)?|火车(?:票)?\s*(?:拼多多|多多|[Pp][Dd][Dd]))" + _calc_expr,
+        "拼多多机票": r"(?:(?:拼多多|多多|[Pp][Dd][Dd])\s*(?:机票|飞机)|(?:机票|飞机)\s*(?:拼多多|多多|[Pp][Dd][Dd]))" + _calc_expr,
+        "千牛": r"千牛" + _calc_expr,
+        "抖音": r"抖音" + _calc_expr,
     }
 
     for key, pattern in patterns.items():
         match = re.search(pattern, text)
         if match:
-            result[key] = int(match.group(1))
+            result[key] = _compute_value(match.group(1))
 
     # 提取备注（平台数字后面的文字说明）
     remark_match = re.search(r"备注[：:]\s*(.+)", text)
@@ -74,16 +86,16 @@ def classify_message(text: str) -> str:
     if any(kw in text for kw in ["提醒", "催一下", "催一下数据", "上报"]):
         return "remind"
 
-    # 修改删除类
-    if any(kw in text for kw in ["修改", "改一下", "删除", "删掉", "去掉"]):
+    # 删除类（修改功能已移除）
+    if any(kw in text for kw in ["删除", "删掉", "去掉"]):
         return "modify"
 
     # 查询类
     if any(kw in text for kw in ["查询", "统计", "汇总", "多少", "排名", "帮我查", "帮我看看"]):
         return "query"
 
-    # 表1：平台+数字（支持拼多多火车票/火车票拼多多 两种顺序）
-    if re.search(r"((拼多多(火车票|机票)|(火车票|机票)\s*拼多多)|千牛|抖音)\s*\d+", text):
+    # 表1：平台+数字（支持拼多多/多多/PDD 及各种变体，票字可选）
+    if re.search(r"(((?:拼多多|多多|[Pp][Dd][Dd])\s*(?:火车票?|机票?|飞机)|(?:火车票?|机票?|飞机)\s*(?:拼多多|多多|[Pp][Dd][Dd]))|千牛|抖音)\s*[=：:]*\s*\d+", text):
         return "table1"
 
     # 表2：看起来像订单号（字母+数字组合，或纯数字编号）
@@ -96,23 +108,6 @@ def classify_message(text: str) -> str:
         return "table2"
 
     return "unknown"
-
-
-def calc_total(pdd_train: int = 0, pdd_flight: int = 0, qianniu: int = 0, douyin: int = 0) -> int:
-    """计算四平台合计。"""
-    return pdd_train + pdd_flight + qianniu + douyin
-
-
-def get_current_month() -> str:
-    """返回当前月份，格式 YYYY-MM。"""
-    return datetime.now().strftime("%Y-%m")
-
-
-def get_base_name(month: str = None) -> str:
-    """生成当月 Base 名称。"""
-    if month is None:
-        month = get_current_month()
-    return f"业务数据登记_{month}"
 
 
 def calc_change_rate(current: float, previous: float) -> str:

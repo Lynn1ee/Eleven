@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发票报销上传 — 元气工作站</title>
+<style>
+  :root {
+    --bg: #fefaf5;
+    --card: #ffffff;
+    --text: #3d3533;
+    --text-secondary: #8a7e78;
+    --coral: #ff7b6c;
+    --coral-light: #fff0ee;
+    --mint: #5fc1a7;
+    --mint-light: #e8f8f3;
+    --blue: #6ba5e7;
+    --border: #efe8e2;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    background: linear-gradient(135deg, #fefaf5 0%, #fdf2ef 50%, #f4f2fb 100%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+
+  .container { max-width: 600px; margin: 0 auto; }
+
+  .header { text-align: center; margin-bottom: 24px; }
+  .header .logo-icon {
+    width: 48px; height: 48px;
+    border-radius: 14px; background: var(--coral);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 24px; margin-bottom: 12px;
+    box-shadow: 0 4px 16px rgba(255, 123, 108, 0.25);
+  }
+  .header h1 { font-size: 22px; font-weight: 800; }
+  .header p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px rgba(61, 53, 51, 0.06);
+    padding: 28px 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 17px; font-weight: 800; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--coral); display: inline-block;
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block; font-size: 13px; font-weight: 700;
+    color: var(--text-secondary); margin-bottom: 5px;
+  }
+  .form-group select {
+    width: 100%; padding: 10px 14px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 15px; font-family: var(--font-sans); background: var(--bg);
+  }
+
+  .file-upload {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border: 2px dashed var(--border);
+    border-radius: var(--radius-sm); cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; background: var(--bg);
+  }
+  .file-upload:hover { border-color: var(--coral); background: var(--coral-light); }
+  .file-upload.has-file { border-color: var(--mint); background: var(--mint-light); }
+  .file-upload input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .file-upload .icon { font-size: 20px; flex-shrink: 0; }
+  .file-upload .file-name { font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .amount-hint { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+
+  .btn {
+    display: block; width: 100%; padding: 14px; border: none;
+    border-radius: var(--radius-sm); font-size: 16px; font-weight: 800;
+    font-family: var(--font-sans); cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: var(--coral); color: #fff;
+    box-shadow: 0 4px 16px rgba(255, 123, 108, 0.30);
+  }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    padding: 12px 24px; border-radius: 24px;
+    font-size: 14px; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12); z-index: 999;
+    animation: slideDown 0.3s ease; display: none;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+  .toast.success { background: var(--mint); color: #fff; }
+  .toast.error { background: var(--coral); color: #fff; }
+  .toast.info { background: var(--blue); color: #fff; }
+
+  /* 每月识别结果 */
+  .month-result {
+    display: none; margin-top: 16px; padding: 14px;
+    background: var(--mint-light); border-radius: var(--radius-sm);
+    font-size: 14px; line-height: 2;
+  }
+  .month-result.show { display: block; }
+  .month-result .info-row { display: flex; align-items: center; gap: 8px; }
+  .month-result .info-label { color: var(--text-secondary); flex-shrink: 0; }
+  .month-result .info-value { font-weight: 700; }
+
+  .copy-btn {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    border: 1px solid var(--blue); background: #fff; color: var(--blue);
+    cursor: pointer; font-family: var(--font-sans);
+  }
+  .copy-btn.copied { background: var(--mint); color: #fff; border-color: var(--mint); }
+
+  .tax-link {
+    display: inline-block; margin: 10px 0 4px;
+    font-size: 12px; color: var(--blue); text-decoration: none;
+    border-bottom: 1px dashed var(--blue);
+  }
+  .tax-link:hover { color: var(--coral); border-color: var(--coral); }
+
+  /* 验真截图上传区 */
+  .verify-section { margin-top: 12px; }
+  .verify-section .file-upload { padding: 10px 12px; }
+  .verify-section .btn { margin-top: 10px; padding: 10px; font-size: 14px; }
+
+  .paste-delete {
+    position: absolute; top: 4px; right: 4px;
+    width: 24px; height: 24px; border-radius: 50%;
+    border: none; background: rgba(0,0,0,0.5); color: #fff;
+    font-size: 14px; line-height: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .paste-delete:hover { background: var(--coral); }
+  .paste-zoom {
+    position: absolute; bottom: 8px; right: 8px;
+    width: 28px; height: 28px; border-radius: 50%;
+    border: none; background: rgba(0,0,0,0.45); color: #fff;
+    font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .paste-zoom:hover { background: var(--blue); }
+
+  .image-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 999;
+    justify-content: center; align-items: center; cursor: pointer;
+  }
+  .image-overlay.show { display: flex; }
+  .image-overlay img { max-width: 95vw; max-height: 95vh; object-fit: contain; border-radius: 8px; }
+
+  .result-box {
+    display: none; margin-top: 12px; padding: 12px 16px;
+    background: var(--mint-light); border-radius: var(--radius-sm);
+    font-size: 13px; line-height: 1.6;
+  }
+  .result-box.show { display: block; }
+
+  @media (max-width: 480px) {
+    body { padding: 16px 10px; }
+    .card { padding: 20px 16px; }
+    .month-result .info-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="logo-icon">🧾</div>
+    <h1>发票报销上传</h1>
+    <p>上传发票 PDF，系统自动识别姓名和金额</p>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- 周期选择 -->
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>选择报销周期</div>
+    <div class="form-group">
+      <select id="cycleSelect">
+        <option value="">— 请选择报销周期 —</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 第1个月发票 PDF -->
+  <div class="card" id="card1">
+    <div class="card-title"><span class="dot"></span><span id="month1Label">第 1 个月</span>发票 PDF</div>
+    <div class="file-upload" id="pdf1Upload" onclick="document.getElementById('pdf1').click()">
+      <span class="icon">📎</span>
+      <span class="file-name">点击选择 PDF 文件</span>
+      <input type="file" id="pdf1" accept=".pdf" style="display:none">
+    </div>
+    <div class="amount-hint" style="margin-top:4px;">系统将自动识别姓名、发票号和金额</div>
+
+    <!-- 第1月识别结果 -->
+    <div class="month-result" id="result1"></div>
+
+    <!-- 第1月验真上传 -->
+    <div class="verify-section" id="verify1" style="display:none;">
+      <a class="tax-link" href="https://inv-veri.chinatax.gov.cn/" target="_blank">→ 打开税务局验真网站</a>
+      <div class="file-upload" id="verify1Upload" onclick="document.getElementById('verifyScreenshot1').click()">
+        <span class="icon">📸</span>
+        <span class="file-name">点击上传验真截图（或在此区域 Ctrl+V 粘贴）</span>
+        <input type="file" id="verifyScreenshot1" accept="image/*" style="display:none">
+      </div>
+      <div class="paste-preview" id="pastePreview1" style="display:none;margin-bottom:8px;text-align:center;position:relative;">
+        <img id="pasteImg1" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border);cursor:pointer;" onclick="viewLarge(1)" title="点击查看大图">
+        <button class="paste-delete" onclick="clearPaste(1)" title="删除此截图">✕</button>
+        <button class="paste-zoom" onclick="viewLarge(1)" title="查看大图">🔍</button>
+      </div>
+      <button class="btn" style="background:var(--mint);color:#fff;" id="verifyBtn1" onclick="confirmVerify(1)">✅ 提交第1月验真</button>
+    </div>
+  </div>
+
+  <!-- 第2个月发票 PDF -->
+  <div class="card" id="card2">
+    <div class="card-title"><span class="dot"></span><span id="month2Label">第 2 个月</span>发票 PDF</div>
+    <div class="file-upload" id="pdf2Upload" onclick="document.getElementById('pdf2').click()">
+      <span class="icon">📎</span>
+      <span class="file-name">点击选择 PDF 文件</span>
+      <input type="file" id="pdf2" accept=".pdf" style="display:none">
+    </div>
+    <div class="amount-hint" style="margin-top:4px;">系统将自动识别姓名、发票号和金额</div>
+
+    <!-- 第2月识别结果 -->
+    <div class="month-result" id="result2"></div>
+
+    <!-- 第2月验真上传 -->
+    <div class="verify-section" id="verify2" style="display:none;">
+      <a class="tax-link" href="https://inv-veri.chinatax.gov.cn/" target="_blank">→ 打开税务局验真网站</a>
+      <div class="file-upload" id="verify2Upload" onclick="document.getElementById('verifyScreenshot2').click()">
+        <span class="icon">📸</span>
+        <span class="file-name">点击上传验真截图（或在此区域 Ctrl+V 粘贴）</span>
+        <input type="file" id="verifyScreenshot2" accept="image/*" style="display:none">
+      </div>
+      <div class="paste-preview" id="pastePreview2" style="display:none;margin-bottom:8px;text-align:center;position:relative;">
+        <img id="pasteImg2" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border);cursor:pointer;" onclick="viewLarge(2)" title="点击查看大图">
+        <button class="paste-delete" onclick="clearPaste(2)" title="删除此截图">✕</button>
+        <button class="paste-zoom" onclick="viewLarge(2)" title="查看大图">🔍</button>
+      </div>
+      <button class="btn" style="background:var(--mint);color:#fff;" id="verifyBtn2" onclick="confirmVerify(2)">✅ 提交第2月验真</button>
+    </div>
+  </div>
+
+  <!-- 话费账单明细（可选） -->
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>话费账单明细（可选）</div>
+    <div class="file-upload" id="listUpload" onclick="document.getElementById('invoiceList').click()">
+      <span class="icon">📋</span>
+      <span class="file-name">点击上传话费账单明细</span>
+      <input type="file" id="invoiceList" accept="image/*" style="display:none">
+    </div>
+  </div>
+
+  <!-- 上传识别按钮 -->
+  <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">上传并识别发票信息</button>
+
+  <div class="result-box" id="resultBox"></div>
+
+  <div class="image-overlay" id="imageOverlay" onclick="this.classList.remove('show')">
+    <img src="">
+  </div>
+</div>
+
+<script>
+  const BASE = window.location.origin;
+
+  var _cycles = [];
+
+  async function loadCycles() {
+    try {
+      const res = await fetch(BASE + '/api/invoice/cycles');
+      const data = await res.json();
+      if (data.success && data.cycles) {
+        _cycles = data.cycles;
+        const sel = document.getElementById('cycleSelect');
+        data.cycles.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.cycle_name;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener('change', updateMonthLabels);
+      }
+    } catch (e) {
+      console.error('加载周期失败:', e);
+    }
+  }
+
+  function updateMonthLabels() {
+    var sel = document.getElementById('cycleSelect');
+    var cycle = _cycles.find(function(c) { return c.id == sel.value; });
+    if (cycle) {
+      document.getElementById('month1Label').textContent = cycle.month_start + '月';
+      document.getElementById('month2Label').textContent = cycle.month_end + '月';
+    } else {
+      document.getElementById('month1Label').textContent = '第 1 个月';
+      document.getElementById('month2Label').textContent = '第 2 个月';
+    }
+  }
+
+  function setupFileFeedback(fileInputId, uploadDivId) {
+    const input = document.getElementById(fileInputId);
+    const div = document.getElementById(uploadDivId);
+    input.addEventListener('change', () => {
+      if (input.files.length > 0) {
+        div.classList.add('has-file');
+        div.querySelector('.file-name').textContent = input.files[0].name;
+      } else {
+        div.classList.remove('has-file');
+        div.querySelector('.file-name').textContent = div.querySelector('.file-name').dataset.default || '点击选择文件';
+      }
+    });
+    const nameSpan = div.querySelector('.file-name');
+    nameSpan.dataset.default = nameSpan.textContent;
+  }
+
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + type;
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 3500);
+  }
+
+  let _currentRecordId = null;
+
+  // 生成复制按钮 HTML
+  function _copyBtn(label, text) {
+    return '<button class="copy-btn" data-copy="' + escHtml(text) + '">复制</button>';
+  }
+
+  // 绑定复制按钮事件（execCommand 方案，兼容 HTTP/HTTPS/任意 IP）
+  function _doCopy() {
+    var txt = this.dataset.copy;
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      this.textContent = '已复制';
+      this.classList.add('copied');
+      var btn = this;
+      setTimeout(function() {
+        btn.textContent = '复制';
+        btn.classList.remove('copied');
+      }, 1500);
+    } catch(e) {
+      showToast('复制失败，请手动复制', 'error');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function _bindCopyBtns(container) {
+    container.querySelectorAll('.copy-btn').forEach(function(btn) {
+      btn.addEventListener('click', _doCopy);
+    });
+  }
+
+  // 为单月生成识别结果 HTML
+  function _renderMonthResult(no, date, amount) {
+    if (!no) return '';
+    var dateDisplay = date || '未识别';
+    var html = '';
+    html += '<div class="info-row"><span class="info-label">票号：</span><span class="info-value">' + escHtml(no) + '</span> ' + _copyBtn('票号', no) + '</div>';
+    html += '<div class="info-row"><span class="info-label">开票日期：</span><span class="info-value">' + escHtml(dateDisplay) + '</span></div>';
+    html += '<div class="info-row"><span class="info-label">金额：</span><span class="info-value">¥' + (amount || 0).toFixed(2) + '</span> ' + _copyBtn('金额', (amount || 0).toFixed(2)) + '</div>';
+    return html;
+  }
+
+  async function submitForm() {
+    const cycleId = document.getElementById('cycleSelect').value;
+    const pdf1 = document.getElementById('pdf1').files[0];
+    const pdf2 = document.getElementById('pdf2').files[0];
+
+    if (!cycleId) { showToast('请选择报销周期', 'error'); return; }
+    if (!pdf1 && !pdf2) { showToast('请至少上传一个月的发票 PDF', 'error'); return; }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '识别中...';
+
+    const formData = new FormData();
+    formData.append('cycle_id', cycleId);
+    if (pdf1) formData.append('pdf1', pdf1);
+    if (pdf2) formData.append('pdf2', pdf2);
+
+    const invList = document.getElementById('invoiceList').files[0];
+    if (invList) formData.append('invoice_list', invList);
+
+    try {
+      const res = await fetch(BASE + '/api/invoice/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        _currentRecordId = data.record_id;
+        showToast('识别成功，请核对信息后验真', 'info');
+
+        // 第1月结果
+        if (data.invoice_no1) {
+          document.getElementById('result1').innerHTML = _renderMonthResult(data.invoice_no1, data.invoice_date1, data.month1_amount);
+          document.getElementById('result1').classList.add('show');
+          document.getElementById('verify1').style.display = '';
+          _bindCopyBtns(document.getElementById('result1'));
+        }
+
+        // 第2月结果
+        if (data.invoice_no2) {
+          document.getElementById('result2').innerHTML = _renderMonthResult(data.invoice_no2, data.invoice_date2, data.month2_amount);
+          document.getElementById('result2').classList.add('show');
+          document.getElementById('verify2').style.display = '';
+          _bindCopyBtns(document.getElementById('result2'));
+        }
+
+        // 滚动到第一个有结果的月份
+        var target = data.invoice_no1 ? document.getElementById('card1') : document.getElementById('card2');
+        target.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        showToast(data.error || '提交失败', 'error');
+        if (data.debug) {
+          const box = document.getElementById('resultBox');
+          box.classList.add('show');
+          let dbg = '<strong>❌ ' + data.error + '</strong><br><br><strong>PDF 文本：</strong><br>';
+          if (data.debug.pdf1_text) {
+            dbg += '<pre style="font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:200px;background:#fff;padding:8px;border-radius:6px;">' + escHtml(data.debug.pdf1_text.substring(0, 1000)) + '</pre>';
+          }
+          if (data.debug.pdf2_text) {
+            dbg += '<pre style="font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:200px;background:#fff;padding:8px;border-radius:6px;">' + escHtml(data.debug.pdf2_text.substring(0, 1000)) + '</pre>';
+          }
+          dbg += '<small>请截图发给管理员</small>';
+          box.innerHTML = dbg;
+        }
+      }
+    } catch (e) {
+      showToast('网络错误，请重试', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '上传并识别发票信息';
+    }
+  }
+
+  async function confirmVerify(month) {
+    if (!_currentRecordId) { showToast('请先上传发票', 'error'); return; }
+
+    var file = _pastedFiles[month];
+    if (!file) {
+      var fileInput = document.getElementById('verifyScreenshot' + month);
+      file = fileInput.files[0];
+    }
+    if (!file) { showToast('请先上传验真截图（点击上传或 Ctrl+V 粘贴）', 'error'); return; }
+
+    const btn = document.getElementById('verifyBtn' + month);
+    btn.disabled = true;
+    btn.textContent = '提交中...';
+
+    const formData = new FormData();
+    formData.append('record_id', _currentRecordId);
+    formData.append('month', month);
+    formData.append('screenshot', file);
+
+    try {
+      const res = await fetch(BASE + '/api/invoice/verify-upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('第' + month + '月验真截图已提交', 'success');
+        btn.textContent = '✅ 已提交';
+        btn.style.background = 'var(--text-secondary)';
+        btn.disabled = true;
+      } else {
+        showToast(data.error || '提交失败', 'error');
+        btn.disabled = false;
+        btn.textContent = '✅ 提交第' + month + '月验真';
+      }
+    } catch (e) {
+      showToast('网络错误', 'error');
+      btn.disabled = false;
+      btn.textContent = '✅ 提交第' + month + '月验真';
+    }
+  }
+
+  // 存储通过粘贴得到的截图文件
+  var _pastedFiles = {};
+
+  function viewLarge(month) {
+    var overlay = document.getElementById('imageOverlay');
+    overlay.querySelector('img').src = document.getElementById('pasteImg' + month).src;
+    overlay.classList.add('show');
+  }
+
+  function clearPaste(month) {
+    delete _pastedFiles[month];
+    document.getElementById('pastePreview' + month).style.display = 'none';
+    document.getElementById('pasteImg' + month).src = '';
+    var uploadDiv = document.getElementById('verify' + month + 'Upload');
+    uploadDiv.classList.remove('has-file');
+    uploadDiv.querySelector('.file-name').textContent = '点击上传验真截图（或在此区域 Ctrl+V 粘贴）';
+    var fileInput = document.getElementById('verifyScreenshot' + month);
+    fileInput.value = '';
+  }
+
+  // 全局粘贴监听 — 无需点击任何区域，直接 Ctrl+V 即可
+  document.addEventListener('paste', function(e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') === 0) {
+        // 第1月已粘贴过 → 自动用第2月
+        var v1 = document.getElementById('verify1');
+        var v2 = document.getElementById('verify2');
+        var month = 1;
+        if (_pastedFiles[1]) {
+          month = 2;
+        } else if (v2 && v2.style.display !== 'none' && (!v1 || v1.style.display === 'none')) {
+          month = 2;
+        }
+
+        e.preventDefault();
+        var blob = items[i].getAsFile();
+        _pastedFiles[month] = blob;
+
+        // 预览
+        var reader = new FileReader();
+        reader.onload = (function(m) {
+          return function(ev) {
+            document.getElementById('pasteImg' + m).src = ev.target.result;
+            document.getElementById('pastePreview' + m).style.display = '';
+          };
+        })(month);
+        reader.readAsDataURL(blob);
+
+        // 标记文件上传区域
+        var uploadDiv = document.getElementById('verify' + month + 'Upload');
+        uploadDiv.classList.add('has-file');
+        uploadDiv.querySelector('.file-name').textContent = '已粘贴截图 (Ctrl+V)';
+
+        showToast('第' + month + '月截图已粘贴，点击下方按钮提交', 'info');
+        break;
+      }
+    }
+  });
+
+  function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // 初始化
+  loadCycles();
+  setupFileFeedback('pdf1', 'pdf1Upload');
+  setupFileFeedback('pdf2', 'pdf2Upload');
+  setupFileFeedback('invoiceList', 'listUpload');
+  setupFileFeedback('verifyScreenshot1', 'verify1Upload');
+  setupFileFeedback('verifyScreenshot2', 'verify2Upload');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排班系统</title>
+<style>
+  :root {
+    --bg: #f5f3f0;
+    --surface: #ffffff;
+    --border: #e6e3dd;
+    --text: #1a1a1a;
+    --text-secondary: #6b6660;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-light: #eff6ff;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warning: #f59e0b;
+    --rest-bg: #ffc000;
+    --xingzheng-bg: #fff3e0;
+    --im-bg: #ffff00;
+    --jidong-bg: #ee822f;
+    --weekend-red: #dc2626;
+    --navy: #0f172a;
+    --radius: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: '微软雅黑', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 380px;
+    min-width: 380px;
+    background: var(--navy);
+    color: #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 10;
+  }
+
+  .sidebar-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+
+  .sidebar-header .subtitle {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+    font-family: '微软雅黑', sans-serif;
+  }
+
+  .sidebar-content {
+    flex: 1;
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sidebar-content label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+    display: block;
+  }
+
+  .param-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .param-row > div { flex: 1; }
+
+  select, input[type="number"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius);
+    background: rgba(255,255,255,0.06);
+    color: #e2e8f0;
+    font-family: '微软雅黑', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  select:focus, input[type="number"]:focus {
+    border-color: var(--accent);
+  }
+
+  select option { background: var(--navy); color: #e2e8f0; }
+
+  .section-label {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    letter-spacing: 0.8px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius);
+    background: rgba(255,255,255,0.06);
+    color: #e2e8f0;
+    font-family: '微软雅黑', sans-serif;
+    font-size: 12px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+    min-height: 50px;
+  }
+
+  textarea:focus { border-color: var(--accent); }
+
+  /* ── 人员配置卡片 ── */
+  .staff-cards { display: flex; flex-direction: column; gap: 10px; }
+
+  .staff-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .staff-card-header {
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .staff-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+    min-height: 24px;
+  }
+
+  .staff-tag {
+    background: rgba(255,255,255,0.1);
+    color: #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .staff-tag button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #f87171;
+    font-size: 14px;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .staff-tag button:hover { color: #ef4444; }
+
+  .staff-input-row { display: flex; gap: 4px; }
+
+  .staff-input {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+  }
+
+  .staff-input:focus { border-color: var(--accent); }
+
+  .staff-btn {
+    border: none;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+
+  .staff-btn:hover { filter: brightness(1.1); }
+
+  .online-info {
+    font-size: 12px;
+    color: #94a3b8;
+    padding: 6px 0;
+  }
+
+  .online-info strong { color: #e2e8f0; }
+
+  .staff-empty {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .targets-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .targets-grid input {
+    width: 36px;
+    text-align: center;
+    padding: 4px 0;
+    font-size: 11px;
+  }
+
+  .btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: var(--radius);
+    font-family: '微软雅黑', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: -0.2px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+
+  .btn-secondary {
+    background: rgba(255,255,255,0.1);
+    color: #e2e8f0;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.18); }
+
+  .btn-success {
+    background: var(--success);
+    color: #fff;
+  }
+  .btn-success:hover { background: #15803d; }
+
+  .btn-group {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .btn-group .btn { flex: 1; text-align: center; padding: 10px 8px; font-size: 12px; }
+
+  .status-msg {
+    font-size: 11px;
+    color: #94a3b8;
+    text-align: center;
+    min-height: 16px;
+    font-family: '微软雅黑', sans-serif;
+  }
+
+  .status-msg.error { color: #f87171; }
+  .status-msg.success { color: #4ade80; }
+
+  /* ── Main Content ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .topbar {
+    padding: 14px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .topbar .brand {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.3px;
+    margin-right: auto;
+  }
+
+  .topbar .pill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Preview Table ── */
+  .preview-section {
+    background: var(--surface);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .preview-section .section-title {
+    padding: 14px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #334155;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fafbfc;
+  }
+
+  .preview-section .section-title::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  .table-wrap {
+    overflow: auto;
+    max-height: 55vh;
+  }
+
+  table {
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: '微软雅黑', sans-serif;
+    white-space: nowrap;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  table thead { position: sticky; top: 0; z-index: 2; }
+
+  table th {
+    background: #f8fafc;
+    padding: 6px 5px;
+    border: 1px solid var(--border);
+    font-weight: 600;
+    text-align: center;
+    min-width: 42px;
+    color: var(--text);
+    font-size: 10px;
+  }
+
+  table th.weekend { color: var(--weekend-red); }
+  table th.holiday { color: var(--danger); }
+  table th.makeup { color: var(--accent); }
+
+  table th.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #f1f5f9;
+    min-width: 60px;
+  }
+
+  table td {
+    padding: 4px 5px;
+    border: 1px solid #f1f5f9;
+    text-align: center;
+    min-width: 42px;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  table td.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: #fff;
+    font-weight: 500;
+    min-width: 60px;
+  }
+
+  /* ── 排班预览表（匹配 Excel 尺寸）── */
+  .preview-section table {
+    font-size: 9px;
+    font-family: '微软雅黑', sans-serif;
+  }
+
+  .preview-section table th {
+    padding: 4px 5px;
+    font-size: 9px;
+    min-width: 40px;
+    height: 27px;
+  }
+
+  .preview-section table th.sticky-col {
+    min-width: 50px;
+  }
+
+  .preview-section table td {
+    padding: 4px 5px;
+    font-size: 9px;
+    min-width: 40px;
+    height: 33px;
+    line-height: 1.2;
+  }
+
+  .preview-section table td.sticky-col {
+    min-width: 50px;
+  }
+
+  table tbody tr:hover td { background: #f8fafc; }
+  table tbody tr:hover td.sticky-col { background: #f1f5f9; }
+
+  .cell-rest { background: #FFC000 !important; }
+  .cell-qingjia { background: #FFC000 !important; }
+  .cell-xingzheng { background: #FFF3E0 !important; }
+  .cell-im { background: #FFFF00 !important; }
+  .cell-jidong { background: #EE822F !important; color: #fff; }
+  .cell-zaoban { background: #E3F2FD !important; }
+  .cell-zaosan { background: #F3E5F5 !important; }
+  .cell-baiban { background: #E8F5E9 !important; }
+  .cell-zhongsan { background: #E0F7FA !important; }
+  .cell-zhongsi { background: #FFF8E1 !important; }
+  .cell-wanyi { background: #FCE4EC !important; }
+  .cell-waner { background: #EDE7F6 !important; }
+  .cell-daye { background: #FFFFFF !important; }
+  .cell-changbai { background: #FFFFFF !important; }
+  .cell-zaozao2 { background: #D1C4E9 !important; }
+
+  /* ── Verification ── */
+  .verify-section {
+    background: var(--surface);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .verify-section .section-title {
+    padding: 14px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #334155;
+    border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .verify-section .section-title::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--success);
+    border-radius: 2px;
+  }
+
+  .verify-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .verify-panel {
+    background: var(--surface);
+    padding: 14px 18px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .verify-panel h3 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #64748b;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+
+  .verify-panel table { font-size: 10px; }
+  .verify-panel table td, .verify-panel table th { padding: 4px 6px; min-width: auto; }
+
+  /* ── Tabs ── */
+  .v-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    padding: 0 18px;
+    background: #fafbfc;
+  }
+
+  .v-tab {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: #94a3b8;
+    font-family: inherit;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+  }
+
+  .v-tab:hover { color: #475569; }
+  .v-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .v-panel { display: none; padding: 14px 18px; max-height: 350px; overflow-y: auto; font-size: 13px; }
+  .v-panel table { font-size: 13px; }
+  .v-panel.active { display: block; }
+
+  .flag-warn { color: var(--danger); font-weight: 600; }
+  .diff-ok { color: var(--success); font-weight: 500; }
+  .diff-warn { color: var(--danger); font-weight: 600; }
+
+  .row-warn td { background: #fef2f2 !important; }
+  .row-warn .sticky-col { background: #fef2f2 !important; }
+
+  /* ── Empty State ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+    gap: 12px;
+  }
+
+  .empty-state .icon { font-size: 48px; opacity: 0.3; }
+
+  .empty-state p { font-size: 14px; font-weight: 500; }
+  .empty-state span { font-size: 12px; opacity: 0.6; }
+
+  /* ── Loading ── */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+
+  /* ── 数据导入区域 ── */
+  .upload-area {
+    border: 1px dashed rgba(255,255,255,0.2);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .upload-area input[type="file"] {
+    width: 100%;
+    color: #94a3b8;
+    font-size: 11px;
+    margin-bottom: 6px;
+    font-family: '微软雅黑', sans-serif;
+  }
+  .upload-area input[type="file"]::file-selector-button {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: '微软雅黑', sans-serif;
+    font-size: 11px;
+  }
+  .coeff-panel {
+    background: rgba(255,255,255,0.04);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin-top: 8px;
+  }
+  .coeff-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .coeff-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    min-width: 42px;
+  }
+  .coeff-chip {
+    font-size: 10px;
+    font-family: '微软雅黑', sans-serif;
+    background: rgba(255,255,255,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #cbd5e1;
+  }
+  .coeff-info {
+    font-size: 10px;
+    color: #64748b;
+    font-family: '微软雅黑', sans-serif;
+    margin-top: 4px;
+  }
+  .target-preview-wrap {
+    margin-top: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .target-preview-table {
+    width: 100%;
+    font-size: 10px;
+    font-family: '微软雅黑', sans-serif;
+    border-collapse: collapse;
+  }
+  .target-preview-table th, .target-preview-table td {
+    padding: 4px 6px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .target-preview-table th {
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .target-preview-table td {
+    color: #e2e8f0;
+  }
+  .target-preview-table tbody tr:hover td { background: rgba(255,255,255,0.04); }
+  .btn-sm {
+    padding: 6px 10px;
+    font-size: 11px;
+    border: none;
+    border-radius: var(--radius);
+    font-family: '微软雅黑', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h1>排班系统</h1>
+    <div class="subtitle">SCHEDULE GENERATOR</div>
+  </div>
+
+  <div class="sidebar-content">
+    <div class="param-row">
+      <div>
+        <label>年份</label>
+        <select id="year"><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option><option value="2029">2029</option><option value="2030">2030</option></select>
+      </div>
+      <div>
+        <label>月份</label>
+        <select id="month">
+          <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option><option value="7" selected>7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="calendar-info" id="calendarInfo" style="font-size:11px;color:#94a3b8;font-family:'微软雅黑',sans-serif;line-height:1.6"></div>
+
+    <label class="section-label">数据导入</label>
+    <div class="upload-area">
+      <input type="file" id="rawDataFile" accept=".xlsx,.xls">
+      <button class="btn btn-secondary" onclick="uploadRawData()" style="width:100%;font-size:11px;padding:6px">上传并分析</button>
+    </div>
+    <div id="coeffPanelArea" style="display:none"></div>
+    <div class="btn-group" style="margin-top:4px">
+      <button class="btn btn-secondary btn-sm" onclick="calculateTargets()" style="flex:1;font-size:11px;padding:6px">计算目标</button>
+      <button class="btn btn-secondary btn-sm" onclick="applyTargets()" style="flex:1;font-size:11px;padding:6px">应用目标</button>
+      <button class="btn btn-secondary btn-sm" onclick="downloadTemplate()" style="flex:1;font-size:11px;padding:6px">导出模板</button>
+    </div>
+    <div id="targetPreviewArea" style="max-height:200px;overflow-y:auto;margin-top:4px"></div>
+
+    <label class="section-label">每日目标人数</label>
+    <div class="targets-grid" id="targetsGrid"></div>
+
+    <label class="section-label">人员配置</label>
+    <div class="staff-cards">
+      <div class="staff-card">
+        <div class="staff-card-header" style="color:#e85d3a;">🔴 专职分销</div>
+        <div class="staff-tags" id="tagsFenxiao"><span class="staff-empty">暂无人员</span></div>
+        <div class="staff-input-row">
+          <input class="staff-input" id="inputFenxiao" placeholder="输入姓名" list="staffList" onkeydown="if(event.key==='Enter')addToGroup('fenxiao')">
+          <button class="staff-btn" style="background:#e85d3a;" onclick="addToGroup('fenxiao')">添加</button>
+        </div>
+      </div>
+      <div class="staff-card">
+        <div class="staff-card-header" style="color:#c49a30;">🟡 专职大夜</div>
+        <div class="staff-tags" id="tagsNightShift"><span class="staff-empty">暂无人员</span></div>
+        <div class="staff-input-row">
+          <input class="staff-input" id="inputNightShift" placeholder="输入姓名" list="staffList" onkeydown="if(event.key==='Enter')addToGroup('night_shift')">
+          <button class="staff-btn" style="background:#c49a30;" onclick="addToGroup('night_shift')">添加</button>
+        </div>
+      </div>
+      <div class="staff-card">
+        <div class="staff-card-header" style="color:#5a9e6f;">🟢 行政班（计入到岗）</div>
+        <div class="staff-tags" id="tagsBuruBan"><span class="staff-empty">暂无人员</span></div>
+        <div class="staff-input-row">
+          <input class="staff-input" id="inputBuruBan" placeholder="输入姓名" list="staffList" onkeydown="if(event.key==='Enter')addToGroup('buru_ban')">
+          <button class="staff-btn" style="background:#5a9e6f;" onclick="addToGroup('buru_ban')">添加</button>
+        </div>
+      </div>
+      <div class="staff-card">
+        <div class="staff-card-header" style="color:#b0a060;">🟡 支援行政班（不计入到岗）</div>
+        <div class="staff-tags" id="tagsBuruSupport"><span class="staff-empty">暂无人员</span></div>
+        <div class="staff-input-row">
+          <input class="staff-input" id="inputBuruSupport" placeholder="输入姓名" list="staffList" onkeydown="if(event.key==='Enter')addToGroup('buru_support')">
+          <button class="staff-btn" style="background:#b0a060;" onclick="addToGroup('buru_support')">添加</button>
+        </div>
+      </div>
+    </div>
+    <datalist id="staffList"></datalist>
+
+    <!-- 休息需求 -->
+    <label class="section-label">休息需求</label>
+    <div class="staff-card">
+      <div class="staff-input-row">
+        <select class="staff-input" id="restReqName" style="flex:1">
+          <option value="">选择员工</option>
+        </select>
+        <input class="staff-input" id="restReqDays" placeholder="如: 3,5,15-17" style="width:110px" onkeydown="if(event.key==='Enter')addRestRequest()">
+        <button class="staff-btn" style="background:#6366f1;" onclick="addRestRequest()">添加</button>
+      </div>
+      <div class="staff-tags" id="tagsRestReq" style="margin-top:6px"><span class="staff-empty">暂无休息需求</span></div>
+    </div>
+
+    <div class="online-info" id="onlineInfo">在线轮转：<strong>--</strong> 人</div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="loadDefaults()">加载默认</button>
+      <button class="btn btn-primary" onclick="generate()" id="btnGenerate">生成排班</button>
+    </div>
+    <button class="btn btn-success" onclick="downloadExcel()" id="btnDownload" style="width:100%">下载 Excel</button>
+    <div class="status-msg" id="statusMsg">就绪，请点击"生成排班"</div>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+  <div class="topbar">
+    <span class="brand">排班预览</span>
+    <span class="pill" id="monthPill">2026年7月</span>
+  </div>
+  <div class="content" id="mainContent">
+    <div class="empty-state">
+      <div class="icon">📋</div>
+      <p>尚未生成排班</p>
+      <span>在左侧面板配置参数，点击"生成排班"开始</span>
+    </div>
+    <div id="diagBox" style="display:none;font-size:12px"></div>
+  </div>
+</main>
+
+<script>
+// ── 全局状态 ──
+const monthDays = [31,28,31,30,31,30,31,31,30,31,30,31];
+const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+const $year = document.getElementById('year');
+const $month = document.getElementById('month');
+const $targetsGrid = document.getElementById('targetsGrid');
+const $statusMsg = document.getElementById('statusMsg');
+const $monthPill = document.getElementById('monthPill');
+const $calendarInfo = document.getElementById('calendarInfo');
+let _lastData = null;  // 缓存最近一次生成结果
+
+function getDaysInMonth(y, m) {
+  if (m === 2) {
+    return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 29 : 28;
+  }
+  return monthDays[m - 1];
+}
+
+async function updateDays() {
+  const y = parseInt($year.value);
+  const m = parseInt($month.value);
+  const days = getDaysInMonth(y, m);
+  $monthPill.textContent = y + '年' + m + '月';
+  renderTargetInputs(days);
+  // 请求日历信息（节假日、标准工时等）
+  try {
+    const res = await fetch(`/api/calendar/info?year=${y}&month=${m}`);
+    const data = await res.json();
+    if (data.success) {
+      renderCalendarInfo(data, m);
+    } else {
+      // API 失败时使用前端简单计算
+      const firstDate = new Date(y, m - 1, 1);
+      const wd = firstDate.getDay();
+      const startWd = wd === 0 ? 6 : wd - 1;
+      let workDays = 0;
+      for (let d = 1; d <= days; d++) {
+        if ((startWd + d - 1) % 7 < 5) workDays++;
+      }
+      $calendarInfo.innerHTML = `${days}天 · 首日周${weekdayNames[startWd]} · 工作日${workDays}天 · 休息日${days - workDays}天`;
+    }
+  } catch (e) {
+    $calendarInfo.innerHTML = `${days}天`;
+  }
+}
+
+function renderCalendarInfo(data, m) {
+  const wd = data.start_weekday != null ? data.start_weekday : 0;
+  let html = `${data.num_days}天 · 首日周${weekdayNames[wd]} · 工作日${data.workday_count}天 · 休息日${data.rest_day_count}天`;
+  if (data.holidays && data.holidays.length > 0) {
+    html += '<br>';
+    const groups = {};
+    for (const h of data.holidays) {
+      const key = h.name + (h.holiday ? '' : '_补班');
+      if (!groups[key]) groups[key] = { name: h.name, holiday: h.holiday, days: [] };
+      groups[key].days.push({ day: h.day, wage: h.wage });
+    }
+    const holidayItems = [], makeupItems = [];
+    for (const g of Object.values(groups)) {
+      const dayStr = g.days.map(d => {
+        const dateLabel = `${m}/${d.day}`;
+        return d.wage >= 3 ? `${dateLabel}(三薪)` : dateLabel;
+      }).join(', ');
+      if (g.holiday) {
+        holidayItems.push(`${g.name}: ${dayStr}`);
+      } else {
+        makeupItems.push(`调休补班: ${dayStr}`);
+      }
+    }
+    if (holidayItems.length > 0) html += holidayItems.join('<br>');
+    if (makeupItems.length > 0) html += '<br>' + makeupItems.join('<br>');
+  }
+  if (data.standard_hours != null) {
+    html += '<br>标准工时: ' + data.standard_hours + '小时';
+  }
+  $calendarInfo.innerHTML = html;
+}
+
+$year.addEventListener('change', updateDays);
+$month.addEventListener('change', updateDays);
+
+function renderTargetInputs(days) {
+  let html = '';
+  for (let i = 1; i <= days; i++) {
+    html += `<input type="number" id="t${i}" value="18" min="10" max="30" title="第${i}天">`;
+  }
+  $targetsGrid.innerHTML = html;
+}
+
+// ── 解析人员文本 ──
+// ── 人员分组管理 ──
+const STORAGE_KEY = 'schedule_groups';
+let _groups = { fenxiao: [], night_shift: [], buru_ban: [], buru_support: [] };
+let _nightGroups = {};  // name → 'A'|'B'
+let _allStaffNames = [];
+let _restRequests = {};  // 员工请休需求 {"张三": [3,5,15]}
+
+function loadGroupData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const data = JSON.parse(saved);
+      _groups = data.groups || data;
+      _nightGroups = data.nightGroups || {};
+      _restRequests = data.restRequests || {};
+      // 确保新字段存在
+      if (!_groups.buru_support) _groups.buru_support = [];
+    }
+  } catch(e) {}
+  for (const k of Object.keys(_groups)) {
+    _groups[k] = _groups[k].filter(n => _allStaffNames.includes(n));
+  }
+  for (const n of Object.keys(_nightGroups)) {
+    if (!_allStaffNames.includes(n)) delete _nightGroups[n];
+  }
+  // 清理不存在人员的请休需求
+  for (const n of Object.keys(_restRequests)) {
+    if (!_allStaffNames.includes(n)) delete _restRequests[n];
+  }
+  renderRestRequests();
+}
+
+function saveGroupData() {
+  const data = { groups: _groups, nightGroups: _nightGroups, restRequests: _restRequests };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // 同步到服务端
+  fetch('/api/schedule/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).catch(e => console.error('保存配置到服务端失败:', e));
+}
+
+function getGroupNames(key) { return _groups[key] || []; }
+
+function addToGroup(key) {
+  const inputId = key === 'fenxiao' ? 'inputFenxiao' : key === 'night_shift' ? 'inputNightShift' : key === 'buru_support' ? 'inputBuruSupport' : 'inputBuruBan';
+  const input = document.getElementById(inputId);
+  const name = input.value.trim();
+  if (!name) return;
+  if (!_allStaffNames.includes(name)) { setStatus('未找到该人员: ' + name, 'error'); return; }
+  for (const k of Object.keys(_groups)) {
+    _groups[k] = _groups[k].filter(n => n !== name);
+  }
+  if (!_groups[key].includes(name)) _groups[key].push(name);
+  // 夜班自动分配组别
+  if (key === 'night_shift' && !_nightGroups[name]) {
+    const countA = Object.values(_nightGroups).filter(g => g === 'A').length;
+    const countB = Object.values(_nightGroups).filter(g => g === 'B').length;
+    _nightGroups[name] = countA <= countB ? 'A' : 'B';
+  }
+  input.value = '';
+  saveGroupData();
+  renderAllGroups();
+}
+
+function removeFromGroup(key, name) {
+  _groups[key] = _groups[key].filter(n => n !== name);
+  if (key === 'night_shift') delete _nightGroups[name];
+  saveGroupData();
+  renderAllGroups();
+}
+
+function renderGroup(key, tagId) {
+  const container = document.getElementById(tagId);
+  const names = _groups[key] || [];
+  if (names.length === 0) {
+    container.innerHTML = '<span class="staff-empty">暂无人员</span>';
+  } else if (key === 'night_shift') {
+    container.innerHTML = names.map(n => {
+      const g = _nightGroups[n] || '?';
+      return `<span class="staff-tag">${n} <span style="font-size:10px;color:#c49a30;font-weight:700;">${g}组</span><button onclick="removeFromGroup('night_shift','${n}')" title="移除">×</button></span>`;
+    }).join('');
+  } else {
+    container.innerHTML = names.map(n =>
+      `<span class="staff-tag">${n}<button onclick="removeFromGroup('${key}','${n}')" title="移除">×</button></span>`
+    ).join('');
+  }
+}
+
+function renderOnlineInfo() {
+  const total = _allStaffNames.length;
+  if (!total) { document.getElementById('onlineInfo').innerHTML = '在线轮转：<strong>--</strong> 人'; return; }
+  const excluded = new Set([..._groups.fenxiao, ..._groups.night_shift, ..._groups.buru_ban, ..._groups.buru_support, '李玲', '何丹妮', '曾瑾']);
+  const onlineNames = _allStaffNames.filter(n => !excluded.has(n));
+  document.getElementById('onlineInfo').innerHTML = '在线轮转：<strong>' + onlineNames.length + '</strong> 人  <span style="font-size:11px;color:#64748b">（' + onlineNames.join('、') + '）</span>';
+}
+
+function renderAllGroups() {
+  renderGroup('fenxiao', 'tagsFenxiao');
+  renderGroup('night_shift', 'tagsNightShift');
+  renderGroup('buru_ban', 'tagsBuruBan');
+  renderGroup('buru_support', 'tagsBuruSupport');
+  renderOnlineInfo();
+  refreshRestReqDropdown();
+}
+
+// ── 休息需求管理 ──
+function refreshRestReqDropdown() {
+  const sel = document.getElementById('restReqName');
+  const cur = sel.value;
+  const excluded = new Set([..._groups.fenxiao, ..._groups.night_shift, ..._groups.buru_ban, ..._groups.buru_support]);
+  const onlineNames = _allStaffNames.filter(n => !excluded.has(n));
+  sel.innerHTML = '<option value="">选择员工</option>' + onlineNames.map(n => `<option value="${n}">${n}</option>`).join('');
+  if (onlineNames.includes(cur)) sel.value = cur;
+}
+
+function addRestRequest() {
+  const name = document.getElementById('restReqName').value.trim();
+  const raw = document.getElementById('restReqDays').value.trim();
+  if (!name) { setStatus('请选择员工', 'error'); return; }
+  if (!raw) { setStatus('请输入日期', 'error'); return; }
+  // 解析日期: 支持 "3,5,15-17" 格式
+  const days = [];
+  for (const part of raw.split(',')) {
+    const p = part.trim();
+    if (p.includes('-')) {
+      const [a, b] = p.split('-').map(Number);
+      if (isNaN(a) || isNaN(b) || a > b) { setStatus('日期范围格式错误: ' + p, 'error'); return; }
+      for (let d = a; d <= b; d++) days.push(d);
+    } else {
+      const d = parseInt(p);
+      if (isNaN(d) || d < 1) { setStatus('日期格式错误: ' + p, 'error'); return; }
+      days.push(d);
+    }
+  }
+  if (!_restRequests[name]) _restRequests[name] = [];
+  // 合并去重
+  const cur = new Set(_restRequests[name]);
+  for (const d of days) cur.add(d);
+  _restRequests[name] = Array.from(cur).sort((a, b) => a - b);
+  document.getElementById('restReqDays').value = '';
+  renderRestRequests();
+  saveGroupData();
+}
+
+function removeRestRequest(name) {
+  delete _restRequests[name];
+  renderRestRequests();
+  saveGroupData();
+}
+
+function renderRestRequests() {
+  const container = document.getElementById('tagsRestReq');
+  const entries = Object.entries(_restRequests).filter(([, days]) => days.length > 0);
+  if (entries.length === 0) {
+    container.innerHTML = '<span class="staff-empty">暂无休息需求</span>';
+    return;
+  }
+  container.innerHTML = entries.map(([name, days]) => {
+    const dayStr = days.join(',');
+    return `<span class="staff-tag" style="flex-basis:100%">${esc(name)}: ${dayStr}号<button onclick="removeRestRequest('${esc(name)}')" title="删除${esc(name)}的全部需求">×</button></span>`;
+    // 注意：这里删除按钮只删第一个日期，可以后续优化为逐日删除
+  }).join('');
+}
+
+function renderStaffDatalist() {
+  document.getElementById('staffList').innerHTML = _allStaffNames.map(n => `<option value="${n}">`).join('');
+}
+
+// ── 获取当前目标人数数组（根据实际 input 数量） ──
+function getDailyTargets() {
+  const targets = [];
+  let i = 1;
+  while (document.getElementById('t' + i)) {
+    targets.push(parseInt(document.getElementById('t' + i).value) || 18);
+    i++;
+  }
+  return targets;
+}
+
+function buildConfig() {
+  return {
+    year: parseInt($year.value),
+    month: parseInt($month.value),
+    daily_targets: getDailyTargets(),
+    fenxiao: getGroupNames('fenxiao'),
+    night_shift: getGroupNames('night_shift').map(n => ({ name: n, group: _nightGroups[n] || 'A' })),
+    buru_ban: getGroupNames('buru_ban'),
+    buru_support: getGroupNames('buru_support'),
+    changbingjia: [],
+    online_staff: [],  // 后端自动计算
+    rest_requests: _restRequests,
+  };
+}
+
+// ── API 调用 ──
+async function loadDefaults() {
+  try {
+    setStatus('正在加载默认配置...');
+    const res = await fetch('/api/schedule/default-config');
+    const data = await res.json();
+    if (data.success) {
+      applyConfig(data.config);
+      setStatus('已加载默认配置', 'success');
+    }
+  } catch (e) {
+    setStatus('加载失败: ' + e.message, 'error');
+  }
+}
+
+function applyConfig(config) {
+  if (config.staff_names) {
+    _allStaffNames = config.staff_names;
+    renderStaffDatalist();
+  }
+  if (config.night_shift_groups) {
+    _nightGroups = { ...config.night_shift_groups };
+  }
+  // 优先使用服务端保存的分组配置
+  loadGroupData();  // 从 localStorage 加载作为基准
+  if (config.groups) {
+    _groups = { fenxiao: [], night_shift: [], buru_ban: [], buru_support: [], ...config.groups };
+  }
+  if (config.night_groups) {
+    _nightGroups = { ..._nightGroups, ...config.night_groups };
+  }
+  if (config.rest_requests) {
+    _restRequests = { ...config.rest_requests };
+    renderRestRequests();
+  }
+  renderAllGroups();
+}
+
+async function generate() {
+  const btn = document.getElementById('btnGenerate');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  setStatus('正在计算排班，请稍候...');
+
+  try {
+    const config = buildConfig();
+    const res = await fetch('/api/schedule/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      _lastData = data;
+      setStatus('排班生成成功！', 'success');
+      renderPreview(data);
+      if (data.diag) { renderDiag(data.diag); }
+      document.getElementById('btnDownload').disabled = false;
+      // 更新日历信息
+      renderCalendarInfo(data, parseInt($month.value));
+      // 保存生成结果到 localStorage
+      try {
+        localStorage.setItem('sch_result', JSON.stringify({
+          month: $month.value, year: $year.value,
+          verification: data.verification, preview: data.preview,
+          diag: data.diag, num_days: data.num_days,
+          start_weekday: data.start_weekday, holidays: data.holidays,
+        }));
+      } catch(e) {}
+    } else {
+      setStatus('生成失败: ' + data.error, 'error');
+    }
+  } catch (e) {
+    setStatus('请求失败: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '生成排班';
+  }
+}
+
+function downloadExcel() {
+  window.open('/api/schedule/download', '_blank');
+}
+
+function setStatus(msg, type) {
+  $statusMsg.textContent = msg;
+  $statusMsg.className = 'status-msg ' + (type || '');
+}
+
+// ── 渲染预览 ──
+function getShiftClass(shift) {
+  if (!shift) return '';
+  const s = shift.replace(/\n/g, '');
+  if (s === '休') return 'cell-rest';
+  if (s === '请假') return 'cell-qingjia';
+  if (s === '行政班') return 'cell-xingzheng';
+  if (s === '长白班') return 'cell-changbai';
+  if (s.includes('IM')) return 'cell-im';
+  if (s.includes('机动')) return 'cell-jidong';
+  if (s === '早班') return 'cell-zaoban';
+  if (s === '早三') return 'cell-zaosan';
+  if (s === '早早2') return 'cell-zaozao2';
+  if (s === '白班') return 'cell-baiban';
+  if (s === '中三') return 'cell-zhongsan';
+  if (s === '中四') return 'cell-zhongsi';
+  if (s === '晚一') return 'cell-wanyi';
+  if (s === '晚二') return 'cell-waner';
+  if (s === '大夜') return 'cell-daye';
+  return '';
+}
+
+function renderPreview(data) {
+  const { preview, verification, num_days, start_weekday, holidays } = data;
+  if (!preview || preview.length === 0) return;
+
+  const numDays = num_days || (preview[0].length - 3);
+  const startWeekday = start_weekday != null ? start_weekday : 0;
+  // 构建快速查找：day → {name, wage, holiday}
+  const holMap = {};
+  if (holidays && Array.isArray(holidays)) {
+    for (const h of holidays) { holMap[h.day] = h; }
+  }
+  let html = '<div class="preview-section"><div class="section-title"><span>📅</span> 排班表</div><div class="table-wrap"><table>';
+
+  // 表头
+  html += '<thead><tr>';
+  html += '<th class="sticky-col">姓名</th><th class="sticky-col">工号</th><th class="sticky-col">组别</th>';
+  for (let d = 1; d <= numDays; d++) {
+    const wd = (startWeekday + d - 1) % 7;
+    let cls = wd >= 5 ? ' weekend' : '';
+    const h = holMap[d];
+    let marker = '';
+    if (h) {
+      if (h.holiday) {
+        marker = h.wage >= 3 ? ' 三薪' : ' 休';
+        cls += ' holiday';
+      } else {
+        marker = ' 班';
+        cls += ' makeup';
+      }
+    }
+    html += `<th class="${cls}" title="${h ? h.name : ''}">${$month.value}/${d}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  // 数据行
+  for (let r = 1; r < preview.length; r++) {
+    const row = preview[r];
+    html += '<tr>';
+    html += `<td class="sticky-col">${esc(row[0])}</td>`;
+    html += `<td class="sticky-col">${esc(row[1])}</td>`;
+    html += `<td class="sticky-col">${esc(row[2])}</td>`;
+    for (let c = 3; c < row.length; c++) {
+      const shift = row[c] || '';
+      const cls = getShiftClass(shift);
+      html += `<td class="${cls}">${esc(shift)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // 验证面板
+  if (verification) {
+    html += renderVerification(verification);
+  }
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function switchVTab(tabId, panel, el) {
+  // 切换标签激活状态
+  const tabs = el.parentElement.querySelectorAll('.v-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // 切换面板
+  const panels = el.parentElement.parentElement.querySelectorAll('.v-panel');
+  panels.forEach(p => p.classList.remove('active'));
+  document.getElementById(tabId + '-' + panel).classList.add('active');
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderVerification(v) {
+  const tabId = 'vt' + Date.now();
+  let html = '<div class="verify-section"><div class="section-title"><span>✅</span> 验证结果</div>';
+
+  // Tab 导航
+  html += '<div class="v-tabs">';
+  html += `<div class="v-tab active" onclick="switchVTab('${tabId}','staff',this)">人员统计</div>`;
+  html += `<div class="v-tab" onclick="switchVTab('${tabId}','daily',this)">每日到岗对比</div>`;
+  if (v.fenxiao && v.fenxiao.length > 0) {
+    html += `<div class="v-tab" onclick="switchVTab('${tabId}','fenxiao',this)">分销IM统计</div>`;
+  }
+  html += `<div class="v-tab" onclick="switchVTab('${tabId}','shifts',this)">班次统计</div>`;
+  html += `<div class="v-tab" onclick="switchVTab('${tabId}','summary',this)">汇总</div>`;
+  html += `<div class="v-tab" onclick="switchVTab('${tabId}','diag',this)">容量诊断</div>`;
+  html += '</div>';
+
+  // Tab 面板: 人员统计
+  html += `<div class="v-panel active" id="${tabId}-staff"><table><thead><tr>`;
+  html += '<th>姓名</th><th>组别</th><th>休</th><th>班</th><th>maxW</th><th>xMaxW</th><th>maxR</th><th>标记</th>';
+  html += '</tr></thead><tbody>';
+  for (const p of v.online || []) {
+    const flagCls = p.flag ? 'flag-warn' : '';
+    const crossMw = p.cross_max_work ?? p.max_work;
+    const warnRow = (p.max_work > 5 || crossMw > 5) ? ' row-warn' : '';
+    html += `<tr class="${warnRow}">`;
+    html += `<td>${esc(p.name)}</td><td>${esc(p.cat)}</td>`;
+    html += `<td>${p.rest}</td><td>${p.work}</td>`;
+    html += `<td style="${p.max_work > 5 ? 'color:#dc2626;font-weight:700' : ''}">${p.max_work}</td>`;
+    html += `<td style="${crossMw > 5 ? 'color:#dc2626;font-weight:700' : ''}">${crossMw}</td>`;
+    html += `<td>${p.max_rest}</td>`;
+    html += `<td class="${flagCls}">${esc(p.flag || '✓')}</td>`;
+    html += `</tr>`;
+  }
+  html += '</tbody></table></div>';
+
+  // Tab 面板: 每日到岗对比
+  html += `<div class="v-panel" id="${tabId}-daily"><table><thead><tr>`;
+  html += '<th>日期</th><th>在线</th><th>行政班</th><th>合计</th><th>目标</th><th>偏差</th>';
+  html += '</tr></thead><tbody>';
+  for (const d of v.daily_headcount || []) {
+    const diffCls = Math.abs(d.diff) >= 2 ? 'diff-warn' : 'diff-ok';
+    html += `<tr>`;
+    html += `<td>${d.day}日</td>`;
+    html += `<td>${d.online}</td><td>${d.buru}</td>`;
+    html += `<td>${d.total}</td><td>${d.target}</td>`;
+    html += `<td class="${diffCls}">${d.diff >= 0 ? '+' + d.diff : d.diff}</td>`;
+    html += `</tr>`;
+  }
+  html += '</tbody></table></div>';
+
+  // Tab 面板: 分销IM统计
+  if (v.fenxiao && v.fenxiao.length > 0) {
+    html += `<div class="v-panel" id="${tabId}-fenxiao"><table><thead><tr>`;
+    html += '<th>姓名</th><th>早早IM</th><th>晚一IM</th><th>机动</th><th>标记</th>';
+    html += '</tr></thead><tbody>';
+    for (const p of v.fenxiao) {
+      const flagCls = p.flag ? 'flag-warn' : '';
+      html += `<tr>`;
+      html += `<td>${esc(p.name)}</td>`;
+      html += `<td>${p.zao_im}</td><td>${p.wan_im}</td><td>${p.jidong}</td>`;
+      html += `<td class="${flagCls}">${esc(p.flag || '✓')}</td>`;
+      html += `</tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+
+  // Tab 面板: 班次统计
+  html += `<div class="v-panel" id="${tabId}-shifts" style="overflow-x:auto;font-size:11px"><table>`;
+  html += '<thead><tr><th style="position:sticky;left:0;background:#f8fafc;z-index:1">班次</th>';
+  const numDays = v.num_days || (v.shift_daily && v.shift_daily[0] ? v.shift_daily[0].daily.length : 31);
+  for (let d = 1; d <= numDays; d++) {
+    html += `<th style="width:26px;font-size:9px">${d}</th>`;
+  }
+  html += '<th>合计</th></tr></thead><tbody>';
+  if (v.shift_daily) {
+    for (const s of v.shift_daily) {
+      html += `<tr><td style="position:sticky;left:0;background:#fff;white-space:nowrap;font-weight:500">${esc(s.name)}</td>`;
+      for (const c of s.daily) {
+        html += `<td style="text-align:center">${c}</td>`;
+      }
+      html += `<td style="font-weight:700">${s.total}</td></tr>`;
+    }
+  }
+  // 大夜单独一行
+  if (v.night_daily) {
+    const nightSum = v.night_daily.reduce((a, b) => a + b, 0);
+    html += `<tr style="border-top:2px solid #cbd5e1;font-weight:700">`;
+    html += `<td style="position:sticky;left:0;background:#fff">大夜</td>`;
+    for (const c of v.night_daily) {
+      html += `<td style="text-align:center">${c}</td>`;
+    }
+    html += `<td>${nightSum}</td></tr>`;
+  }
+  // 合计行
+  if (v.shift_daily && v.night_daily) {
+    html += `<tr style="border-top:2px solid #94a3b8;font-weight:700;background:#f1f5f9">`;
+    html += `<td style="position:sticky;left:0;background:#f1f5f9">每日合计</td>`;
+    for (let d = 0; d < numDays; d++) {
+      let daySum = 0;
+      for (const s of v.shift_daily) { daySum += s.daily[d]; }
+      daySum += v.night_daily[d];
+      html += `<td style="text-align:center">${daySum}</td>`;
+    }
+    html += '<td></td></tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Tab 面板: 汇总
+  html += `<div class="v-panel" id="${tabId}-summary">`;
+  const allPeople = (v.online || []);
+  const onlineV = allPeople.filter(p => p.cat === '在线' || p.cat === '分销');
+  const totalRest = onlineV.reduce((s, p) => s + p.rest, 0);
+  const maxWorkOk = onlineV.every(p => p.max_work <= 5);
+  const maxRestOk = onlineV.every(p => p.max_rest <= 2);
+  const targetOk = (v.daily_headcount || []).every(d => Math.abs(d.diff) < 2);
+
+  // 收集所有不合格明细
+  const workIssues = [];    // 连上超标
+  const restIssues = [];    // 连休超标
+  const lateEarlyIssues = []; // 晚接早
+  for (const p of onlineV) {
+    const crossMw = p.cross_max_work ?? p.max_work;
+    if (p.max_work > 5 || crossMw > 5) {
+      if (p.max_work > 5 && crossMw > p.max_work) {
+        workIssues.push(`${p.name} 当月maxW=${p.max_work} 跨月maxW=${crossMw}`);
+      } else if (crossMw > 5) {
+        workIssues.push(`${p.name} 跨月maxW=${crossMw}`);
+      } else {
+        workIssues.push(`${p.name} maxW=${p.max_work}`);
+      }
+    }
+    if (p.max_rest > 2) restIssues.push(`${p.name} maxR=${p.max_rest}`);
+    if (p.flag && p.flag.includes('晚接早')) lateEarlyIssues.push(p.name + ' ' + p.flag);
+  }
+  const targetIssues = (v.daily_headcount || []).filter(d => Math.abs(d.diff) >= 2).map(d => `${d.day}日偏差${d.diff > 0 ? '+' + d.diff : d.diff}`);
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
+  html += `<div style="background:#f8fafc;padding:12px;border-radius:6px"><div style="font-size:11px;color:#64748b">在线人数</div><div style="font-size:22px;font-weight:700;color:#334155">${onlineV.length}</div><div style="font-size:10px;color:#94a3b8;margin-top:2px">轮转人员总数</div></div>`;
+  html += `<div style="background:#f8fafc;padding:12px;border-radius:6px"><div style="font-size:11px;color:#64748b">总休息天数</div><div style="font-size:22px;font-weight:700;color:#334155">${totalRest}</div><div style="font-size:10px;color:#94a3b8;margin-top:2px">全部在线人员休息日合计</div></div>`;
+  html += `<div style="background:${maxWorkOk?'#f0fdf4':'#fef2f2'};padding:12px;border-radius:6px"><span style="font-size:11px">连上≤5</span> <span style="font-size:16px;font-weight:700;color:${maxWorkOk?'#16a34a':'#dc2626'}">${maxWorkOk ? '✓' : '✗'}</span><div style="font-size:10px;color:#94a3b8;margin-top:2px">连续上班不超过5天</div></div>`;
+  html += `<div style="background:${maxRestOk?'#f0fdf4':'#fef2f2'};padding:12px;border-radius:6px"><span style="font-size:11px">连休≤2</span> <span style="font-size:16px;font-weight:700;color:${maxRestOk?'#16a34a':'#dc2626'}">${maxRestOk ? '✓' : '✗'}</span><div style="font-size:10px;color:#94a3b8;margin-top:2px">连续休息不超过2天</div></div>`;
+  html += `<div style="background:${targetOk?'#f0fdf4':'#fef2f2'};padding:12px;border-radius:6px"><span style="font-size:11px">到岗匹配</span> <span style="font-size:16px;font-weight:700;color:${targetOk?'#16a34a':'#dc2626'}">${targetOk ? '✓' : '✗'}</span><div style="font-size:10px;color:#94a3b8;margin-top:2px">每日偏差均≤1人</div></div>`;
+  html += '</div>';
+
+  // 不合格明细
+  const allIssues = [
+    { title: '连上超标 (' + workIssues.length + ')', items: workIssues, ok: workIssues.length === 0 },
+    { title: '连休超标 (' + restIssues.length + ')', items: restIssues, ok: restIssues.length === 0 },
+    { title: '晚接早 (' + lateEarlyIssues.length + ')', items: lateEarlyIssues, ok: lateEarlyIssues.length === 0 },
+    { title: '到岗偏差≥2 (' + targetIssues.length + ')', items: targetIssues, ok: targetIssues.length === 0 },
+  ];
+  for (const sec of allIssues) {
+    html += `<div style="background:${sec.ok?'#f0fdf4':'#fef2f2'};padding:10px 12px;border-radius:6px;margin-bottom:6px">`;
+    html += `<span style="font-weight:600;font-size:12px;color:${sec.ok?'#16a34a':'#dc2626'}">${sec.ok ? '✓' : '✗'} ${sec.title}</span>`;
+    if (!sec.ok) {
+      html += `<div style="font-size:11px;color:#dc2626;margin-top:4px;line-height:1.5">${sec.items.join('<br>')}</div>`;
+    }
+    html += '</div>';
+  }
+
+  // 跨月衔接
+  const cm = v.cross_month;
+  if (cm && cm.has_prev_data) {
+    const cmIssues = [...(cm.daye_issues||[]), ...(cm.cross_issues||[]), ...(cm.late_early_issues||[])];
+    const cmOk = cmIssues.length === 0;
+    html += `<div style="background:${cmOk?'#f0fdf4':'#fef2f2'};padding:10px 12px;border-radius:6px;margin-bottom:6px">`;
+    html += `<span style="font-weight:600;font-size:12px;color:${cmOk?'#16a34a':'#dc2626'}">${cmOk ? '✓' : '✗'} 跨月衔接 (上月大夜${cm.daye_count||0}人)</span>`;
+    if (!cmOk) {
+      html += `<div style="font-size:11px;color:#dc2626;margin-top:4px;line-height:1.5">${cmIssues.join('<br>')}</div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // Tab 面板: 容量诊断
+  html += `<div class="v-panel" id="${tabId}-diag"></div>`;
+
+  html += '</div>';  // verify-section
+  return html;
+}
+
+// ── 目标人数计算 ──
+let _sourceUploaded = false;
+let _coefficients = null;
+let _calculatedTargets = null;
+let _onlineCount = 24;  // 默认在线轮转+行政班
+
+async function uploadRawData() {
+  const fileInput = document.getElementById('rawDataFile');
+  const file = fileInput.files[0];
+  if (!file) { setStatus('请选择文件', 'error'); return; }
+
+  setStatus('正在上传并解析...');
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/targets/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) {
+      _sourceUploaded = true;
+      _coefficients = null;
+      _calculatedTargets = null;
+      document.getElementById('coeffPanelArea').style.display = 'block';
+      document.getElementById('targetPreviewArea').innerHTML = '';
+      renderSourceInfo(data.source_info);
+      fetchCoefficients();
+      setStatus('数据上传成功', 'success');
+    } else {
+      setStatus('上传失败: ' + data.error, 'error');
+    }
+  } catch (e) {
+    setStatus('上传失败: ' + e.message, 'error');
+  }
+}
+
+function renderSourceInfo(info) {
+  const wdLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  let html = '<div class="coeff-panel">';
+  html += `<div class="coeff-info">源数据: ${info.year}年${info.month}月 | ${info.num_days}天 · 首日${wdLabels[info.start_weekday]}</div>`;
+  html += `<div class="coeff-info">月总计: ${info.monthly_total} | 日均: ${info.monthly_avg}</div>`;
+  html += '</div>';
+  document.getElementById('coeffPanelArea').innerHTML = html;
+}
+
+async function fetchCoefficients() {
+  try {
+    const res = await fetch('/api/targets/coefficients');
+    const data = await res.json();
+    if (data.success) {
+      _coefficients = data;
+      renderCoefficientPanel(data);
+    }
+  } catch (e) {}
+}
+
+function renderCoefficientPanel(data) {
+  const wdNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  let html = document.getElementById('coeffPanelArea').innerHTML;
+
+  html += '<div class="coeff-row" style="margin-top:6px"><span class="coeff-label">周系数</span>';
+  for (const [key, val] of Object.entries(data.weekly_coeffs)) {
+    html += `<span class="coeff-chip">${key}=${val.toFixed(2)}</span>`;
+  }
+  html += '</div>';
+
+  html += '<div class="coeff-row"><span class="coeff-label">日系数</span>';
+  for (let wd = 0; wd < 7; wd++) {
+    const val = data.weekday_coeffs[wd] != null ? data.weekday_coeffs[wd] : 1.0;
+    html += `<span class="coeff-chip">${wdNames[wd]}=${Number(val).toFixed(2)}</span>`;
+  }
+  html += '</div>';
+
+  document.getElementById('coeffPanelArea').innerHTML = html;
+}
+
+async function calculateTargets() {
+  if (!_sourceUploaded) { setStatus('请先上传原始数据', 'error'); return; }
+
+  const config = buildConfig();
+  _onlineCount = _allStaffNames.length - _groups.fenxiao.length - _groups.night_shift.length - 2;
+
+  setStatus('正在计算每日目标...');
+  try {
+    const res = await fetch('/api/targets/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        year: config.year,
+        month: config.month,
+        online_count: _onlineCount,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      _calculatedTargets = data.daily_targets;
+      renderTargetPreview(data);
+      setStatus(`计算完成: 总人次=${data.total_person_trips} | 工作日${data.workday_count}天`, 'success');
+    } else {
+      setStatus('计算失败: ' + data.error, 'error');
+    }
+  } catch (e) {
+    setStatus('计算失败: ' + e.message, 'error');
+  }
+}
+
+function renderTargetPreview(data) {
+  let html = '<div class="target-preview-wrap"><table class="target-preview-table"><thead><tr>';
+  html += '<th>日期</th><th>理论值</th><th>目标</th>';
+  html += '</tr></thead><tbody>';
+  for (const d of data.details) {
+    const th = data.raw_theoretical ? data.raw_theoretical[d.day - 1] || d.theoretical : d.theoretical;
+    html += `<tr>`;
+    html += `<td>${d.label}</td>`;
+    html += `<td>${Number(th).toFixed(1)}</td>`;
+    html += `<td style="font-weight:600">${d.target}</td>`;
+    html += `</tr>`;
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('targetPreviewArea').innerHTML = html;
+}
+
+function applyTargets() {
+  if (!_calculatedTargets) { setStatus('请先计算目标', 'error'); return; }
+  for (let i = 0; i < _calculatedTargets.length; i++) {
+    const input = document.getElementById('t' + (i + 1));
+    if (input) input.value = _calculatedTargets[i];
+  }
+  localStorage.setItem('sch_targets', JSON.stringify({ targets: _calculatedTargets, month: $month.value, year: $year.value }));
+  setStatus(`已应用${_calculatedTargets.length}天目标`, 'success');
+}
+
+function downloadTemplate() {
+  if (!_sourceUploaded) { setStatus('请先上传原始数据', 'error'); return; }
+  window.open('/api/targets/download-template', '_blank');
+}
+
+// ── 初始化 ──
+function renderDiag(diag) {
+  const panel = document.querySelector('.v-panel[id$="-diag"]');
+  if (!panel) return;
+  const td = 'padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#334155;font-size:12px';
+  const td2 = 'padding:4px 8px;border-bottom:1px solid #e2e8f0;color:#1a1a1a;font-weight:500;font-size:12px';
+  let html = '<table style="margin:0;border-collapse:collapse;width:100%"><tbody>';
+  html += `<tr><td style="${td}">在线人数</td><td style="${td2}">${diag.n_online}</td></tr>`;
+  html += `<tr><td style="${td}">工作日数</td><td style="${td2}">${diag.workday_count}</td></tr>`;
+  html += `<tr><td style="${td}">计入人力的行政班</td><td style="${td2}">${diag.buru_online_count}</td></tr>`;
+  html += `<tr><td style="${td}">总人天容量</td><td style="${td2}">${diag.n_online + diag.buru_online_count} x ${diag.workday_count} = ${diag.total_capacity}</td></tr>`;
+  html += `<tr><td style="${td}">目标总和</td><td style="${td2}">${diag.total_target}</td></tr>`;
+  html += `<tr><td style="${td}">是否触发容量平摊</td><td style="${td2};color:${diag.capacity_adjusted?'#dc2626':'#16a34a'}">${diag.capacity_adjusted ? '是 (目标 > 容量)' : '否 (容量充足)'}</td></tr>`;
+  if (diag.capacity_adjusted) {
+    html += `<tr><td style="${td}">缩放比例</td><td style="${td2}">${(diag.scale * 100).toFixed(2)}%</td></tr>`;
+  }
+  html += `<tr><td style="${td}">行政班工作日贡献</td><td style="${td2}">${diag.buru_online_count}人 × ${diag.buru_workdays}天 = ${diag.buru_online_count * diag.buru_workdays} 人天</td></tr>`;
+  html += `<tr><td style="${td}">调整后在线目标总和</td><td style="${td2}">${diag.effective_sum}（= 总容量 ${diag.total_capacity} - 行政班 ${diag.buru_online_count * diag.buru_workdays}）</td></tr>`;
+  html += `<tr><td style="${td}">原始目标(全月)</td><td style="${td2};font-size:10px;word-break:break-all">[${diag.original_targets.join(', ')}]</td></tr>`;
+  html += `<tr><td style="${td}">调整后在线目标(全月)</td><td style="${td2};font-size:10px;word-break:break-all">[${diag.effective_targets.join(', ')}]</td></tr>`;
+  html += '</tbody></table>';
+  panel.innerHTML = html;
+}
+
+async function init() {
+  // 默认月份设为下个月
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  $year.value = nextMonth.getFullYear();
+  $month.value = nextMonth.getMonth() + 1;
+
+  // 加载全员工名单
+  try {
+    const res = await fetch('/api/schedule/default-config');
+    const data = await res.json();
+    if (data.success) {
+      applyConfig(data.config);
+    }
+  } catch(e) { console.error('加载员工列表失败', e); }
+  updateDays();
+
+  // 尝试恢复上次上传的目标数据
+  try {
+    const tres = await fetch('/api/targets/current');
+    const tdata = await tres.json();
+    if (tdata.success && tdata.has_data) {
+      _sourceUploaded = true;
+      renderSourceInfo(tdata.source_info);
+      document.getElementById('coeffPanelArea').style.display = 'block';
+      if (tdata.has_coefficients) {
+        _coefficients = { weekly_coeffs: tdata.weekly_coeffs, weekday_coeffs: tdata.weekday_coeffs };
+        renderCoefficientPanel(_coefficients);
+      }
+      if (tdata.has_targets) {
+        _calculatedTargets = tdata.daily_targets;
+        // 自动应用到目标输入框
+        for (let i = 0; i < _calculatedTargets.length; i++) {
+          const input = document.getElementById('t' + (i + 1));
+          if (input) input.value = _calculatedTargets[i];
+        }
+        // 构建预览（与 renderTargetPreview 格式一致）
+        const wdLabels = ['周一','周二','周三','周四','周五','周六','周日'];
+        const sd = tdata.source_info;
+        const startWd = sd.start_weekday;
+        const theo = tdata.theoretical || [];
+        let html = '<div class="target-preview-wrap"><table class="target-preview-table"><thead><tr>';
+        html += '<th>日期</th><th>理论值</th><th>目标</th>';
+        html += '</tr></thead><tbody>';
+        for (let i = 0; i < _calculatedTargets.length; i++) {
+          const wd = (startWd + i) % 7;
+          const th = theo[i] != null ? Number(theo[i]).toFixed(1) : '-';
+          html += `<tr><td>${sd.month}/${i+1} ${wdLabels[wd]}</td><td>${th}</td><td style="font-weight:600">${_calculatedTargets[i]}</td></tr>`;
+        }
+        html += '</tbody></table></div>';
+        document.getElementById('targetPreviewArea').innerHTML = html;
+      }
+    }
+  } catch(e) { console.error('恢复目标数据失败', e); }
+
+  // 尝试恢复上次生成的排班结果
+  try {
+    const saved = localStorage.getItem('sch_result');
+    if (saved) {
+      const result = JSON.parse(saved);
+      if (result.preview && result.verification) {
+        renderPreview(result);
+        if (result.diag) { renderDiag(result.diag); }
+        document.getElementById('btnDownload').disabled = false;
+      }
+    }
+  } catch(e) {}
+}
+init();
+</script>
+</body>
+</html>

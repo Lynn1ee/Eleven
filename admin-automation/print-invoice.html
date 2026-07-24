@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发票打印 — 元气工作站</title>
+<style>
+  :root {
+    --bg: #fefaf5; --card: #ffffff; --text: #3d3533;
+    --text-secondary: #8a7e78; --coral: #ff7b6c; --coral-light: #fff0ee;
+    --mint: #5fc1a7; --mint-light: #e8f8f3; --blue: #6ba5e7; --border: #efe8e2;
+    --radius: 16px; --radius-sm: 10px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    background: linear-gradient(135deg, #fefaf5 0%, #fdf2ef 50%, #f4f2fb 100%);
+    color: var(--text); min-height: 100vh; padding: 20px;
+  }
+
+  /* ── 工具栏 ── */
+  .toolbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px;
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    flex-wrap: wrap;
+  }
+  .toolbar h2 { font-size: 18px; margin-right: auto; }
+  .toolbar .cycle-label { font-size: 13px; color: var(--coral); font-weight: 600; }
+  .btn {
+    padding: 8px 18px; border-radius: 20px; border: none;
+    font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .btn-print { background: var(--coral); color: #fff; font-weight: 600; }
+  .btn-select { background: var(--blue); color: #fff; }
+  .btn-secondary { background: var(--border); color: var(--text); }
+  .stats { font-size: 13px; color: var(--text-secondary); }
+
+  /* ── 表格 ── */
+  .table-wrap {
+    background: var(--card); border-radius: var(--radius);
+    border: 1px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-size: 13px; font-weight: 600; color: var(--text-secondary); background: #fafaf8; }
+  td { font-size: 14px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fefaf7; }
+  .cb-cell { width: 40px; text-align: center; }
+  .cb-cell input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--coral); }
+  .name-cell { font-weight: 600; }
+  .status-printed { color: var(--mint); font-weight: 600; }
+  .status-unprinted { color: var(--text-secondary); }
+  .btn-preview {
+    padding: 4px 14px; border-radius: 14px; border: 1px solid var(--blue);
+    background: #fff; color: var(--blue); font-size: 13px;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-preview:hover { background: #eef5fc; }
+
+  /* ── 预览弹窗 ── */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 200;
+    justify-content: center; align-items: flex-start;
+    padding: 30px; overflow-y: auto;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-content {
+    background: #fff; border-radius: var(--radius);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+    position: relative;
+  }
+  .modal-close {
+    position: sticky; top: 10px; float: right; z-index: 10;
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: rgba(0,0,0,0.6); color: #fff; font-size: 18px;
+    cursor: pointer; margin: 10px;
+  }
+  .modal-close:hover { background: rgba(0,0,0,0.8); }
+
+  /* ── A4 预览页 ── */
+  .preview-page {
+    width: 210mm; height: 297mm;
+    background: #fff; padding: 6mm 7mm; display: flex; flex-direction: column; gap: 5mm;
+  }
+  .preview-name {
+    text-align: center; font-size: 15px; font-weight: 700;
+    padding-bottom: 3mm; border-bottom: 1px dashed #ccc; margin-bottom: 2mm;
+  }
+  .preview-slot {
+    flex: 1; min-height: 0; overflow: hidden; border: 1px dashed #eee;
+  }
+  .preview-slot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .preview-slot-empty {
+    background: #fafafa; display: flex; align-items: center; justify-content: center;
+    color: #ddd; font-size: 14px;
+  }
+
+  /* ── 打印 ── */
+  @media print {
+    @page { size: A4; margin: 0; }
+    body { background: #fff; padding: 0; }
+    .toolbar, .table-wrap, .modal-overlay, .modal-close { display: none !important; }
+    .print-only { display: block !important; }
+  }
+  .print-only { display: none; }
+
+  .loading { text-align: center; padding: 60px; color: var(--text-secondary); }
+  .error { text-align: center; padding: 60px; color: var(--coral); }
+  .empty-state { text-align: center; padding: 60px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- 工具栏 -->
+<div class="toolbar" id="toolbar">
+  <h2>发票打印</h2>
+  <span class="cycle-label" id="cycleLabel">加载中...</span>
+  <span class="stats" id="statsInfo"></span>
+  <button class="btn btn-select" onclick="selectAll()">全选</button>
+  <button class="btn btn-secondary" onclick="deselectAll()">取消全选</button>
+  <button class="btn btn-print" onclick="doPrint()">打印所选</button>
+</div>
+
+<!-- 表格 -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="cb-cell"><input type="checkbox" id="checkAll" onchange="onCheckAll(this)" checked></th>
+        <th>姓名</th>
+        <th>预览</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr><td colspan="4" class="loading">加载中...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 预览弹窗 -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closePreview()">
+  <div class="modal-content" id="modalContent">
+    <button class="modal-close" onclick="closePreview()">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- 打印区（隐藏，打印时显示） -->
+<div class="print-only" id="printArea"></div>
+
+<script>
+var API_BASE = window.location.origin;
+
+function getParam(name) {
+  var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// Canvas 旋转纵向图片，返回正确方向的 data URL
+function rotatePortraitImg(img) {
+  return new Promise(function(resolve) {
+    if (img.naturalHeight <= img.naturalWidth) {
+      resolve(img.src); // 已是横向，无需旋转
+      return;
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = img.naturalHeight;
+    canvas.height = img.naturalWidth;
+    var ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    resolve(canvas.toDataURL('image/jpeg', 0.9));
+  });
+}
+var cycleId = getParam('cycle_id');
+if (!cycleId) {
+  document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" class="error">缺少 cycle_id 参数</td></tr>';
+} else {
+  loadData();
+}
+
+function loadData() {
+  Promise.all([
+    fetch(API_BASE + '/api/invoice/cycles').then(function(r) { return r.json(); }),
+    fetch(API_BASE + '/api/invoice/records?cycle_id=' + cycleId).then(function(r) { return r.json(); })
+  ]).then(function(results) {
+    var cyclesData = results[0];
+    var recordsData = results[1];
+
+    var cycle = (cyclesData.cycles || []).find(function(c) { return c.id === parseInt(cycleId); });
+    if (cycle) {
+      document.getElementById('cycleLabel').textContent = cycle.cycle_name;
+    }
+
+    if (!recordsData.success || !recordsData.records.length) {
+      document.getElementById('tableBody').innerHTML =
+        '<tr><td colspan="4" class="empty-state">该周期暂无提交记录</td></tr>';
+      document.getElementById('statsInfo').textContent = '共 0 人';
+      return;
+    }
+
+    window._records = recordsData.records;
+    window._cycle = cycle;
+    renderTable(recordsData.records);
+  }).catch(function(e) {
+    document.getElementById('tableBody').innerHTML =
+      '<tr><td colspan="4" class="error">加载失败：' + e.message + '</td></tr>';
+  });
+}
+
+function pngUrl(filePath) {
+  return API_BASE + '/api/invoice-png?cycle_id=' + cycleId + '&file=' + encodeURIComponent(filePath);
+}
+function fileUrl(filePath) {
+  return API_BASE + '/api/invoice-file?cycle_id=' + cycleId + '&file=' + encodeURIComponent(filePath);
+}
+
+function isPrinted(recordId) {
+  return localStorage.getItem('invoice_printed_' + cycleId + '_' + recordId) === '1';
+}
+function markPrinted(recordId) {
+  localStorage.setItem('invoice_printed_' + cycleId + '_' + recordId, '1');
+}
+
+function renderTable(records) {
+  var tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  records.forEach(function(r) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-id', r.id);
+
+    var printed = isPrinted(r.id);
+
+    tr.innerHTML =
+      '<td class="cb-cell"><input type="checkbox" checked onchange="updateStats()"></td>' +
+      '<td class="name-cell">' + escHtml(r.name) + '</td>' +
+      '<td><button class="btn-preview" onclick="showPreview(' + r.id + ')">预览</button></td>' +
+      '<td><span class="' + (printed ? 'status-printed' : 'status-unprinted') + '">' +
+        (printed ? '已打印' : '未打印') +
+      '</span></td>';
+
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('checkAll').checked = true;
+  updateStats();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showPreview(recordId) {
+  var r = window._records.find(function(x) { return x.id === recordId; });
+  if (!r) return;
+
+  var slots = [
+    { file: !!r.pdf1_filename, src: r.pdf1_filename ? pngUrl('PDF/' + r.pdf1_filename) : '' },
+    { file: !!r.pdf2_filename, src: r.pdf2_filename ? pngUrl('PDF/' + r.pdf2_filename) : '' },
+    { file: !!r.invoice_list_filename, src: r.invoice_list_filename ? fileUrl('PDF+验真/' + r.name + '/' + r.invoice_list_filename) : '' }
+  ];
+
+  var page = document.createElement('div');
+  page.className = 'preview-page';
+
+  var nameDiv = document.createElement('div');
+  nameDiv.className = 'preview-name';
+  nameDiv.textContent = r.name;
+  page.appendChild(nameDiv);
+
+  slots.forEach(function(s) {
+    var slot = document.createElement('div');
+    slot.className = 'preview-slot' + (s.file ? '' : ' preview-slot-empty');
+    if (s.file) {
+      var img = document.createElement('img');
+      img.src = s.src;
+      img.onload = function() {
+        rotatePortraitImg(img).then(function(rotatedSrc) {
+          if (rotatedSrc !== img.src) img.src = rotatedSrc;
+        });
+      };
+      slot.appendChild(img);
+    } else {
+      slot.textContent = '（空）';
+    }
+    page.appendChild(slot);
+  });
+
+  var body = document.getElementById('modalBody');
+  body.innerHTML = '';
+  body.appendChild(page);
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closePreview() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+/* ── 选择 / 打印 ── */
+
+function onCheckAll(cb) {
+  document.querySelectorAll('#tableBody input[type="checkbox"]').forEach(function(c) {
+    c.checked = cb.checked;
+  });
+  updateStats();
+}
+
+function updateStats() {
+  var total = window._records ? window._records.length : 0;
+  var selected = document.querySelectorAll('#tableBody input[type="checkbox"]:checked').length;
+  document.getElementById('statsInfo').textContent = '共 ' + total + ' 人 | 已选: ' + selected;
+}
+
+function selectAll() {
+  document.querySelectorAll('#tableBody input[type="checkbox"]').forEach(function(c) { c.checked = true; });
+  document.getElementById('checkAll').checked = true;
+  updateStats();
+}
+
+function deselectAll() {
+  document.querySelectorAll('#tableBody input[type="checkbox"]').forEach(function(c) { c.checked = false; });
+  document.getElementById('checkAll').checked = false;
+  updateStats();
+}
+
+function doPrint() {
+  var selectedIds = [];
+  document.querySelectorAll('#tableBody input[type="checkbox"]:checked').forEach(function(cb) {
+    var tr = cb.closest('tr');
+    if (tr) selectedIds.push(parseInt(tr.getAttribute('data-id')));
+  });
+
+  if (selectedIds.length === 0) { alert('请至少选择一人'); return; }
+
+  var printArea = document.getElementById('printArea');
+  printArea.innerHTML = '';
+
+  // 预先加载所有图片，纵向的用 canvas 旋转后再构建 DOM
+  var allSlots = []; // { recordId, slotIdx, file, src }
+  selectedIds.forEach(function(id) {
+    var r = window._records.find(function(x) { return x.id === id; });
+    if (!r) return;
+    var slots = [
+      { file: !!r.pdf1_filename, src: r.pdf1_filename ? pngUrl('PDF/' + r.pdf1_filename) : '' },
+      { file: !!r.pdf2_filename, src: r.pdf2_filename ? pngUrl('PDF/' + r.pdf2_filename) : '' },
+      { file: !!r.invoice_list_filename, src: r.invoice_list_filename ? fileUrl('PDF+验真/' + r.name + '/' + r.invoice_list_filename) : '' }
+    ];
+    allSlots.push({ record: r, slots: slots });
+  });
+
+  // 收集所有图片 URL
+  var tasks = [];
+  allSlots.forEach(function(item) {
+    item.slots.forEach(function(s) {
+      if (s.file) {
+        tasks.push(new Promise(function(resolve) {
+          var tmp = new Image();
+          tmp.onload = function() {
+            rotatePortraitImg(tmp).then(function(finalSrc) {
+              resolve({ src: finalSrc, isRotated: finalSrc !== s.src });
+            }).catch(function() {
+              resolve({ src: s.src, isRotated: false });
+            });
+          };
+          tmp.onerror = function() {
+            resolve({ src: s.src, isRotated: false });
+          };
+          tmp.src = s.src;
+        }));
+      } else {
+        tasks.push(Promise.resolve(null));
+      }
+    });
+  });
+
+  Promise.all(tasks).then(function(results) {
+    var idx = 0;
+    allSlots.forEach(function(item) {
+      var page = document.createElement('div');
+      page.style.cssText = 'width:210mm;height:297mm;background:#fff;padding:6mm 7mm;display:flex;flex-direction:column;gap:5mm;page-break-after:always;';
+
+      item.slots.forEach(function(s) {
+        var slot = document.createElement('div');
+        slot.style.cssText = 'flex:1;min-height:0;overflow:hidden;';
+        var result = results[idx++];
+        if (result) {
+          var img = document.createElement('img');
+          img.src = result.src;
+          img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
+          slot.appendChild(img);
+        } else {
+          slot.style.cssText += 'border:1px dashed #eee;';
+        }
+        page.appendChild(slot);
+      });
+
+      printArea.appendChild(page);
+    });
+
+    // 等所有图片在 DOM 中渲染完成后打印
+    var imgs = printArea.querySelectorAll('img');
+    var loaded = 0, totalImgs = imgs.length;
+    if (totalImgs === 0) {
+      doFinishPrint();
+    } else {
+      imgs.forEach(function(img) {
+        if (img.complete) {
+          loaded++;
+          if (loaded === totalImgs) doFinishPrint();
+        } else {
+          img.onload = function() { loaded++; if (loaded === totalImgs) doFinishPrint(); };
+          img.onerror = function() { loaded++; if (loaded === totalImgs) doFinishPrint(); };
+        }
+      });
+    }
+  });
+
+  function doFinishPrint() {
+    selectedIds.forEach(function(id) { markPrinted(id); });
+    renderTable(window._records);
+    selectedIds.forEach(function(id) {
+      var tr = document.querySelector('#tableBody tr[data-id="' + id + '"]');
+      if (tr) {
+        var cb = tr.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = true;
+      }
+    });
+    document.getElementById('checkAll').checked = true;
+    updateStats();
+    window.print();
+  }
+}
+</script>
+
+</body>
+</html>

@@ -5,6 +5,17 @@
 .processed_ids.json
 .state_*.json
 
+# Watchdog 运行时文件
+.watchdog_state.json
+.watchdog_pid
+.watchdog_heartbeat
+.backfill_state.json
+.chat_ids.json
+.last_msg_ts
+
+# 日志
+*.log
+
 # Python 缓存
 __pycache__/
 *.pyc

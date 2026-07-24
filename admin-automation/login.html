@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 — 元气工作站</title>
+<style>
+  :root {
+    --bg: #fefaf5;
+    --card: #ffffff;
+    --text: #3d3533;
+    --text-secondary: #8a7e78;
+    --coral: #ff7b6c;
+    --coral-light: #fff0ee;
+    --mint: #5fc1a7;
+    --blue: #6ba5e7;
+    --border: #efe8e2;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    background: linear-gradient(135deg, #fefaf5 0%, #fdf2ef 50%, #f4f2fb 100%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-page {
+    display: flex;
+    align-items: stretch;
+    max-width: 780px;
+    width: 92vw;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 40px rgba(61, 53, 51, 0.10);
+    overflow: hidden;
+  }
+
+  .login-brand {
+    flex: 1;
+    background: linear-gradient(160deg, #3d3533 0%, #4a3f3c 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 32px;
+    color: #fff;
+    text-align: center;
+  }
+  .login-brand .logo-icon {
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    background: var(--coral);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(255, 123, 108, 0.30);
+  }
+  .login-brand h1 {
+    font-size: 22px; font-weight: 800; margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .login-brand p {
+    font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.6;
+  }
+
+  .login-form-area {
+    flex: 1.2;
+    padding: 48px 36px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .login-form-area h2 {
+    font-size: 20px; font-weight: 800; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .login-form-area .login-sub {
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 28px;
+  }
+
+  .field-label {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin-bottom: 4px; display: block;
+  }
+  .field-input {
+    width: 100%; padding: 10px 14px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); font-family: inherit; font-size: 14px;
+    outline: none; background: #fefcf9; margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+  .field-input:focus { border-color: var(--coral); }
+
+  .smtp-toggle {
+    font-size: 12px; color: var(--blue); text-decoration: none;
+    cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .smtp-settings { display: none; }
+
+  .row { display: flex; gap: 10px; }
+  .row > div:first-child { flex: 2; }
+  .row > div:last-child { flex: 1; }
+
+  .login-error {
+    color: var(--coral); font-size: 13px; margin-bottom: 12px; min-height: 20px;
+  }
+  .btn-login {
+    width: 100%; padding: 11px; border-radius: var(--radius-sm);
+    background: var(--coral); color: #fff; font-size: 15px; font-weight: 700;
+    border: none; cursor: pointer; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .btn-login:hover { background: #ff6958; }
+  .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .login-hint {
+    font-size: 12px; color: var(--text-secondary); margin-top: 16px; text-align: center;
+  }
+
+  @media (max-width: 640px) {
+    .login-page { flex-direction: column; }
+    .login-brand { padding: 32px 24px; }
+    .login-brand .logo-icon { width: 40px; height: 40px; font-size: 22px; margin-bottom: 12px; }
+    .login-brand h1 { font-size: 18px; }
+    .login-form-area { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-brand">
+    <div class="logo-icon">&#9889;</div>
+    <h1>元气工作站</h1>
+    <p>客服团队管理后台<br>多用户数据同步 · 一键报表导出</p>
+  </div>
+
+  <div class="login-form-area">
+    <h2>欢迎回来</h2>
+    <div class="login-sub">请使用邮箱和 SMTP 授权码登录</div>
+
+    <label class="field-label">邮箱地址</label>
+    <input class="field-input" type="email" id="loginEmail" placeholder="your_name@company.com" autocomplete="email" onchange="detectSmtp()" onkeydown="if(event.key==='Enter')doLogin()">
+
+    <label class="field-label">SMTP 授权码 <span style="font-weight:400;font-size:11px;color:#999;">（邮箱设置中的授权码或独立密码）</span></label>
+    <input class="field-input" type="password" id="loginPass" placeholder="输入 SMTP 授权码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+
+    <div style="margin-bottom:12px;">
+      <a class="smtp-toggle" href="javascript:void(0)" onclick="var el=document.getElementById('smtpSettings');var icon=document.getElementById('smtpArrow');if(el.style.display==='none'||el.style.display===''){el.style.display='block';icon.textContent='▾'}else{el.style.display='none';icon.textContent='▸'}"><span id="smtpArrow">&#x25B8;</span> SMTP 服务器设置（企业邮箱请展开配置）</a>
+    </div>
+
+    <div class="smtp-settings" id="smtpSettings">
+      <div style="margin-bottom:8px;">
+        <label class="field-label">快速选择</label>
+        <select class="field-input" onchange="onSmtpProviderChange(this.value)" style="margin-bottom:8px;">
+          <option value="">— 请选择邮箱服务商 —</option>
+          <option value="netease_enterprise">网易企业邮箱</option>
+          <option value="tencent_enterprise">腾讯企业邮箱</option>
+          <option value="qq">QQ邮箱 / Foxmail</option>
+          <option value="163">163邮箱 / 126邮箱 / Yeah</option>
+          <option value="aliyun">阿里企业邮箱</option>
+          <option value="gmail">Gmail</option>
+          <option value="outlook">Outlook / Hotmail</option>
+          <option value="custom">自定义</option>
+        </select>
+      </div>
+      <div class="row">
+        <div>
+          <label class="field-label">SMTP 服务器地址</label>
+          <input class="field-input" id="loginSmtpHost" placeholder="smtp.qiye.163.com" style="margin-bottom:8px;">
+        </div>
+        <div>
+          <label class="field-label">端口</label>
+          <select class="field-input" id="loginSmtpPort" style="margin-bottom:8px;">
+            <option value="465">465 (SSL)</option>
+            <option value="994">994 (SSL)</option>
+            <option value="587">587 (TLS)</option>
+            <option value="25">25</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="login-error" id="loginError"></div>
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">登 录</button>
+    <div class="login-hint">首次登录后 SMTP 配置将自动保存<br>后续可在设置中修改收件人等信息</div>
+  </div>
+</div>
+
+<script>
+var API_BASE = (window.location.protocol === 'file:') ? 'http://localhost:8899' : '';
+
+function apiFetch(path, options) {
+  var headers = { 'Content-Type': 'application/json' };
+  var token = localStorage.getItem('admin_session_token') || '';
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (options && options.headers) {
+    for (var k in options.headers) headers[k] = options.headers[k];
+  }
+  var fetchOptions = {};
+  for (var k in options) fetchOptions[k] = options[k];
+  fetchOptions.headers = headers;
+  return fetch(API_BASE + path, fetchOptions);
+}
+
+function onSmtpProviderChange(provider) {
+  if (!provider) return;
+  var hostEl = document.getElementById('loginSmtpHost');
+  var portEl = document.getElementById('loginSmtpPort');
+  var providers = {
+    'netease_enterprise': { host: 'smtp.qiye.163.com', port: '465' },
+    'tencent_enterprise': { host: 'smtp.exmail.qq.com', port: '465' },
+    'qq':                { host: 'smtp.qq.com',         port: '465' },
+    '163':               { host: 'smtp.163.com',        port: '465' },
+    'aliyun':            { host: 'smtp.qiye.aliyun.com', port: '465' },
+    'gmail':             { host: 'smtp.gmail.com',      port: '587' },
+    'outlook':           { host: 'smtp-mail.outlook.com', port: '587' },
+  };
+  if (providers[provider]) {
+    hostEl.value = providers[provider].host;
+    portEl.value = providers[provider].port;
+  }
+}
+
+function detectSmtp() {
+  var email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  var hostEl = document.getElementById('loginSmtpHost');
+  var portEl = document.getElementById('loginSmtpPort');
+  var domain = email.split('@')[1];
+  if (!domain) return;
+  var domainMap = {
+    'qq.com':       { host: 'smtp.qq.com',       port: '465' },
+    'vip.qq.com':   { host: 'smtp.qq.com',       port: '465' },
+    'foxmail.com':  { host: 'smtp.qq.com',       port: '465' },
+    '163.com':      { host: 'smtp.163.com',      port: '465' },
+    '126.com':      { host: 'smtp.126.com',      port: '465' },
+    'yeah.net':     { host: 'smtp.yeah.net',     port: '465' },
+    'aliyun.com':   { host: 'smtp.aliyun.com',   port: '465' },
+    'gmail.com':    { host: 'smtp.gmail.com',    port: '587' },
+    'outlook.com':  { host: 'smtp-mail.outlook.com', port: '587' },
+    'hotmail.com':  { host: 'smtp-mail.outlook.com', port: '587' },
+  };
+  if (domainMap[domain]) {
+    hostEl.value = domainMap[domain].host;
+    portEl.value = domainMap[domain].port;
+  } else if (domain.endsWith('.qq.com') || domain === 'exmail.qq.com') {
+    hostEl.value = 'smtp.exmail.qq.com';
+    portEl.value = '465';
+  } else {
+    hostEl.value = 'smtp.' + domain;
+    portEl.value = '465';
+  }
+}
+
+// 检测到已登录则直接跳转主页
+(function checkLogin() {
+  var token = localStorage.getItem('admin_session_token');
+  if (token) {
+    apiFetch('/api/user/profile').then(function(r) { return r.json(); }).then(function(data) {
+      if (data.success) {
+        window.location.href = '/';
+      }
+    }).catch(function() {});
+  }
+})();
+
+function doLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var smtpPass = document.getElementById('loginPass').value.trim();
+  var smtpHost = document.getElementById('loginSmtpHost').value.trim() || 'smtp.qq.com';
+  var smtpPort = parseInt(document.getElementById('loginSmtpPort').value, 10) || 465;
+  var btn = document.getElementById('loginBtn');
+  var errEl = document.getElementById('loginError');
+
+  if (!email || !smtpPass) {
+    errEl.textContent = '请输入邮箱和 SMTP 授权码';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '验证中...';
+  errEl.textContent = '';
+
+  apiFetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: email, smtp_pass: smtpPass, smtp_host: smtpHost, smtp_port: smtpPort })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.success) {
+      localStorage.setItem('admin_session_token', data.token);
+      window.location.href = '/';
+    } else {
+      errEl.textContent = data.error || '登录失败';
+      btn.disabled = false;
+      btn.textContent = '登 录';
+    }
+  }).catch(function(err) {
+    errEl.textContent = '无法连接服务器，请确认 email_server.py 已启动';
+    btn.disabled = false;
+    btn.textContent = '登 录';
+  });
+}
+</script>
+
+</body>
+</html>
