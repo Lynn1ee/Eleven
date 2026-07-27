@@ -23,7 +23,7 @@ CHANG_BAI = '长白班'
 XING_ZHENG = '行政班'
 ZAO_ZAO_IM = '早早班\n(IM)'
 WAN_YI_IM = '晚一\n(IM)'
-BAI_BAN_JD = '白班\n(机动)'
+XING_ZHENG_JD = '行政班\n(机动)'
 ZAO_BAN = '早班'
 ZAO_SAN = '早三'
 BAI_BAN = '白班'
@@ -37,7 +37,7 @@ TIAN_DI = '天地班'
 QING_JIA = '请假'
 
 LATE_SHIFTS = {ZHONG_SAN, ZHONG_SI, WAN_YI, WAN_ER, WAN_YI_IM}
-EARLY_SHIFTS = {ZAO_BAN, ZAO_SAN, XING_ZHENG, BAI_BAN, ZAO_ZAO_IM, BAI_BAN_JD, ZAO_ZAO_2}
+EARLY_SHIFTS = {ZAO_BAN, ZAO_SAN, XING_ZHENG, BAI_BAN, ZAO_ZAO_IM, XING_ZHENG_JD, ZAO_ZAO_2}
 
 
 # ── 全员工号库（唯一数据源）──
@@ -543,7 +543,7 @@ class ScheduleEngine:
                     zao_cand, wan_cand = others[1], others[0]
                 if prev_shifts[zao_cand] == WAN_YI_IM:
                     zao_cand, wan_cand = wan_cand, zao_cand
-                schedules[jidong_name][day - 1] = BAI_BAN_JD
+                schedules[jidong_name][day - 1] = XING_ZHENG_JD
                 schedules[zao_cand][day - 1] = ZAO_ZAO_IM
                 schedules[wan_cand][day - 1] = WAN_YI_IM
                 jidong_cnt[jidong_name] += 1
@@ -638,7 +638,8 @@ class ScheduleEngine:
     # ── 6. 在线轮转排班 ──
 
     def _assign_shifts_for_day(self, working, day, prev_shift, rest_days, fenxiao_rest_days,
-                                schedules, balance=None, jd_count=None, wan2_count=None):
+                                schedules, balance=None, jd_count=None, wan2_count=None,
+                                zaozao2_count=None):
         rng_day = random.Random(day * 137 + 42)
         n_workers = len(working)
 
@@ -725,6 +726,28 @@ class ScheduleEngine:
                 if assignments.get(p['name']) == WAN_ER:
                     wan2_count[p['name']] += 1
 
+        # 早早2均衡：与晚二类似的交换逻辑
+        if zaozao2_count is not None:
+            early_assigned = [(p, assignments[p['name']]) for p in working
+                             if p['name'] in assignments and assignments[p['name']] in EARLY_SHIFTS]
+            zaozao2_names = set(p['name'] for p, s in early_assigned if s == ZAO_ZAO_2)
+            non_zaozao2 = [(p, s) for p, s in early_assigned if s != ZAO_ZAO_2]
+            for zp_name in list(zaozao2_names):
+                zp = next(p for p in working if p['name'] == zp_name)
+                better = [(p, s) for p, s in non_zaozao2
+                          if zaozao2_count[p['name']] < zaozao2_count[zp_name]]
+                if better:
+                    swap_p, swap_s = min(better, key=lambda x: zaozao2_count[x[0]['name']])
+                    assignments[zp_name] = swap_s
+                    assignments[swap_p['name']] = ZAO_ZAO_2
+                    non_zaozao2 = [(p, s) for p, s in non_zaozao2 if p['name'] != swap_p['name']]
+                    non_zaozao2.append((zp, swap_s))
+                    zaozao2_names.discard(zp_name)
+                    zaozao2_names.add(swap_p['name'])
+            for p in working:
+                if assignments.get(p['name']) == ZAO_ZAO_2:
+                    zaozao2_count[p['name']] += 1
+
         unassigned = [p for p in working if p['name'] not in assignments]
         leftover = early_pool + late_pool
         rng_day.shuffle(leftover)
@@ -741,7 +764,8 @@ class ScheduleEngine:
                      if day not in fenxiao_rest_days.get(n, set()))
             fenxiao_all_work = (wc == 3)
 
-        if not fenxiao_all_work:
+        # 工作日周妙笛固定上行政班（机动），轮转人员不再需要
+        if not fenxiao_all_work and not self.is_workday(day):
             candidates = [p for p in working
                           if p['name'] in assignments
                           and prev_shift.get(p['name']) not in LATE_SHIFTS
@@ -754,7 +778,7 @@ class ScheduleEngine:
                     jd_count[chosen['name']] += 1
                 else:
                     chosen = rng_day.choice(candidates)
-                assignments[chosen['name']] = BAI_BAN_JD
+                assignments[chosen['name']] = XING_ZHENG_JD
 
         for p in working:
             if p['name'] in assignments:
@@ -776,7 +800,7 @@ class ScheduleEngine:
                 for d in range(1, self.num_days + 1)]
 
     def _remove_rest_from_overstaffed(self, name, rest_days, forced_rest_days, effective_target):
-        """从超员日优先移除一个非强制休息日，不破坏连上约束"""
+        """从超员日优先移除一个非强制休息日，不破坏连上约束。返回 True 表示成功移除。"""
         dw = self._daily_workers(rest_days)
         # 找该人的非强制休息日，优先选超员最多的
         candidates = []
@@ -791,24 +815,11 @@ class ScheduleEngine:
             for _, d in candidates:
                 test_rest = rest_days[name] - {d}
                 test_wm = [day not in test_rest for day in range(1, self.num_days + 1)]
-                if self._max_consecutive(test_wm) < 7:
+                if self._max_consecutive(test_wm) <= 5:
                     rest_days[name].discard(d)
-                    return
-        # 没有超员日可选 → 从所有非强制休息日中选偏差最小的移除，保证休息总数不变
-        all_candidates = []
-        for d in rest_days[name]:
-            if d in forced_rest_days.get(name, set()):
-                continue
-            gap = dw[d - 1] - effective_target[d - 1]
-            all_candidates.append((gap, d))
-        if all_candidates:
-            all_candidates.sort(key=lambda x: x[0])  # 优先移除偏差最小的
-            for _, d in all_candidates:
-                test_rest = rest_days[name] - {d}
-                test_wm = [day not in test_rest for day in range(1, self.num_days + 1)]
-                if self._max_consecutive(test_wm) < 7:
-                    rest_days[name].discard(d)
-                    return
+                    return True
+        # 没有超员日可选 → 宁可保留连上超标，也不破坏偏差=0
+        return False
 
     def _generate_online(self, fenxiao_rest_days=None):
         import time as _time
@@ -821,6 +832,22 @@ class ScheduleEngine:
 
         rng = random.Random(42)
         an_rng = random.Random(67890)
+
+        # 周妙笛按行政班作息：工作日行政班（机动），非工作日休息
+        zhou_name = '周妙笛'
+        zhou_sched = None
+        original_online_staff = self.online_staff
+        if any(p['name'] == zhou_name for p in self.online_staff):
+            zhou_sched = []
+            for day in range(1, self.num_days + 1):
+                zhou_sched.append(XING_ZHENG_JD if self.is_workday(day) else XI)
+            pm = self.prev_month_data
+            if pm.get('last_shift', {}).get(zhou_name) == DA_YE:
+                zhou_sched[0] = XI
+            elif pm.get('work_streak', {}).get(zhou_name, 0) >= 5:
+                zhou_sched[0] = XI
+            self.online_staff = [p for p in self.online_staff if p['name'] != zhou_name]
+
         rest_target = self.num_days - sum(1 for d in range(1, self.num_days + 1) if self.is_workday(d))
         n = len(self.online_staff)
         _tick(f"初始化: {n}人, {self.num_days}天, rest_target={rest_target}")
@@ -829,7 +856,8 @@ class ScheduleEngine:
         # Step 1: 人天容量平摊 — 如果目标总人天超过可提供人天，缺口均摊到每天
         workday_count = sum(1 for d in range(1, self.num_days + 1) if self.is_workday(d))
         buru_online_count = len(self.buru_ban)  # 正常行政班人数（支援行政班不计入）
-        total_capacity = (n + buru_online_count) * workday_count
+        zhou_workdays = sum(1 for s in zhou_sched if s != XI) if zhou_sched else 0
+        total_capacity = (n + buru_online_count) * workday_count + zhou_workdays
         total_target = sum(self.daily_targets)
         if total_target > total_capacity:
             scale = total_capacity / total_target  # 按比例缩放，保持每日忙闲比不变
@@ -879,6 +907,12 @@ class ScheduleEngine:
         effective_target = [max(0, capacity_adjusted[d - 1] - buru_working[d - 1])
                            for d in range(1, self.num_days + 1)]
 
+        # Step 2b: 扣除周妙笛固定行政班贡献（工作日1人，非工作日0人）
+        if zhou_sched:
+            zhou_working = [1 if s != XI else 0 for s in zhou_sched]
+            effective_target = [max(0, effective_target[d] - zhou_working[d])
+                               for d in range(self.num_days)]
+
         # 补充诊断信息
         self._diag['n_online'] = n
         self._diag['workday_count'] = workday_count
@@ -902,10 +936,12 @@ class ScheduleEngine:
         rest_streak = {}
         daye_names = []
         forced_rest_days = {}  # name → set of days，跨月强制休息，后续阶段不可删除
+        init_pm_ws = {}  # 月初初始连上（上月遗留），用于月初休息日分布软约束
         for p in self.online_staff:
             name = p['name']
             forced_rest_days[name] = set()
             work_streak[name] = pm.get('work_streak', {}).get(name, 0)
+            init_pm_ws[name] = work_streak[name]
             rest_streak[name] = pm.get('rest_streak', {}).get(name, 0)
             # 上月最后一天是大夜 → 至少休1天
             if pm.get('last_shift', {}).get(name) == DA_YE:
@@ -959,6 +995,9 @@ class ScheduleEngine:
                     score += wstreak * 40
                 score += block_bonus
                 score -= ahead_penalty
+                # 月初分布软偏好：上月连上高的人（跨月风险高），月初优先获得休息日
+                if init_pm_ws.get(name, 0) >= 3 and day <= 5 and 1 not in forced_rest_days.get(name, set()):
+                    score += 80
                 score += rng.randint(0, 20)
                 scored.append((score, name))
 
@@ -996,8 +1035,7 @@ class ScheduleEngine:
                     work_streak[name] += 1
                     rest_streak[name] = 0
 
-        # Phase 1.5: Break excessive work streaks
-        # 先处理跨月连上：上月结转的工作天数 + 本月月初连上可能超标
+        # Phase 1.5: 修复跨月连上超标 — 用 1:1 交换替代插入+补偿
         for p in self.online_staff:
             name = p['name']
             pm_ws = pm.get('work_streak', {}).get(name, 0)
@@ -1009,14 +1047,70 @@ class ScheduleEngine:
                 if w:
                     cur += 1
                     day = i + 1
-                    max_allowed = 6
-                    if cur > max_allowed:
-                        if day not in rest_days[name] and day not in forced_rest_days.get(name, set()):
-                            rest_days[name].add(day)
-                            forced_rest_days[name].add(day)
-                            # 优先从超员日移除补偿（保持偏差均衡）
-                            self._remove_rest_from_overstaffed(name, rest_days, forced_rest_days, effective_target)
-                        cur = 0
+                    if cur > 5:
+                        # 跨月连上超标，尝试 1:1 交换
+                        need_day = day
+                        s_non_forced = sorted([d for d in rest_days[name]
+                                               if d not in forced_rest_days.get(name, set())],
+                                              reverse=True)
+                        found = False
+                        for fname in sorted([p2['name'] for p2 in self.online_staff if p2['name'] != name],
+                                           key=lambda n: pm.get('work_streak', {}).get(n, 0)):
+                            f_rests = rest_days[fname]
+                            f_pm = pm.get('work_streak', {}).get(fname, 0)
+                            for early_day in range(1, need_day + 1):
+                                if found: break
+                                if early_day not in f_rests: continue
+                                if early_day in forced_rest_days.get(fname, set()): continue
+                                # 预检：fname 交出 early_day 后月内是否超标
+                                tf_pre = f_rests - {early_day}
+                                tf_pre_wm = [d not in tf_pre for d in range(1, self.num_days + 1)]
+                                if self._max_consecutive(tf_pre_wm) > 5:
+                                    continue
+                                for give_day in s_non_forced:
+                                    if found: break
+                                    if give_day <= early_day: continue
+                                    if give_day in f_rests: continue
+                                    if give_day in wm and not wm[give_day - 1]: continue  # f 这天已休息
+                                    f_wm_full = [d not in f_rests for d in range(1, self.num_days + 1)]
+                                    if not f_wm_full[give_day - 1]: continue
+                                    # 尝试交换
+                                    ts = (rest_days[name] | {early_day}) - {give_day}
+                                    tf = (f_rests | {give_day}) - {early_day}
+                                    ts_wm = [d not in ts for d in range(1, self.num_days + 1)]
+                                    tf_wm = [d not in tf for d in range(1, self.num_days + 1)]
+                                    ts_rm = [d in ts for d in range(1, self.num_days + 1)]
+                                    tf_rm = [d in tf for d in range(1, self.num_days + 1)]
+                                    s_cons = sum(1 for w2 in ts_wm if w2)
+                                    s_start_cons = 0
+                                    for w2 in ts_wm:
+                                        if w2: s_start_cons += 1
+                                        else: break
+                                    f_start_cons = 0
+                                    for w2 in tf_wm:
+                                        if w2: f_start_cons += 1
+                                        else: break
+                                    new_s_cross = pm_ws + s_start_cons
+                                    new_f_cross = f_pm + f_start_cons if f_pm > 0 else 0
+                                    if (self._max_consecutive(ts_wm) <= 5 and self._max_consecutive(ts_rm) <= 2 and
+                                        self._max_consecutive(tf_wm) <= 5 and self._max_consecutive(tf_rm) <= 2 and
+                                        new_s_cross <= 5 and new_f_cross <= 5):
+                                        rest_days[name] = ts
+                                        rest_days[fname] = tf
+                                        forced_rest_days.setdefault(name, set()).add(early_day)
+                                        found = True
+                        if found:
+                            # 已修复此人的跨月连上，重新计算 wm 继续检查
+                            wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
+                            cur = pm_ws
+                            for i2, w2 in enumerate(wm):
+                                if w2:
+                                    cur += 1
+                                    if cur > 5:
+                                        pass  # 重新进入修复流程
+                                else:
+                                    cur = 0
+                        cur = 0  # 当前超标已处理（无论成功与否）
                 else:
                     cur = 0
 
@@ -1032,7 +1126,7 @@ class ScheduleEngine:
                 else:
                     cur = 0
                 day = i + 1
-                max_allowed = 6
+                max_allowed = 5
                 if cur > max_allowed:
                     severity = cur - max_allowed
                     if severity > worst_severity:
@@ -1219,27 +1313,21 @@ class ScheduleEngine:
                 name = p['name']
                 wm = [d not in rd[name] for d in range(1, self.num_days + 1)]
                 mw = self._max_consecutive(wm)
-                if mw > 6:
-                    excess = mw - 6
-                    cur = 0
-                    streak_end = 0
-                    for i, w in enumerate(wm):
+                # 跨月合并连上：上月结转 + 本月月初连续工作
+                pm_ws = pm.get('work_streak', {}).get(name, 0)
+                cross_mw = mw
+                if pm_ws > 0:
+                    cons_day1 = 0
+                    for w in wm:
                         if w:
-                            if cur == 0:
-                                cur += 1
-                            else:
-                                cur += 1
-                            if cur == mw:
-                                streak_end = i + 1
+                            cons_day1 += 1
                         else:
-                            cur = 0
-                    if streak_end >= self.num_days - 4:
-                        if mw > 6:
-                            e += (mw - 6) * (mw - 6) * 500 + excess * excess * 2000
-                        else:
-                            e += excess * excess * 2000
-                    else:
-                        e += excess * excess * 3000
+                            break
+                    cross_mw = max(mw, pm_ws + cons_day1)
+                # 用跨月合并值做惩罚，促使连上超标在所有人之间均匀分摊
+                if cross_mw > 5:
+                    excess = cross_mw - 5
+                    e += excess * excess * 3000
                 if len(rd[name]) != rest_target:
                     e += abs(len(rd[name]) - rest_target) * 10000
             return e
@@ -1262,6 +1350,8 @@ class ScheduleEngine:
             work_days = [d for d in range(1, self.num_days + 1) if d not in rest_days[p2]]
             if not work_days:
                 continue
+            if d1 in forced_rest_days.get(p1, set()):
+                continue  # 不移动跨月强制休息日
             d2 = an_rng.choice(work_days)
             if d1 == d2 or d2 in rest_days[p1] or d1 in rest_days[p2]:
                 continue
@@ -1379,7 +1469,11 @@ class ScheduleEngine:
                         continue
                     if target not in rest_days[pp['name']]:
                         continue
+                    if target in forced_rest_days.get(pp['name'], set()):
+                        continue
                     for swap_out in sorted(rest_days[worst_name]):
+                        if swap_out in forced_rest_days.get(worst_name, set()):
+                            continue
                         if swap_out >= longest_start:
                             break
                         if swap_out in rest_days[pp['name']]:
@@ -1430,7 +1524,7 @@ class ScheduleEngine:
                 name = p['name']
                 wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
                 mw = self._max_consecutive(wm)
-                if mw <= 6:
+                if mw <= 5:
                     continue
                 cur = 0
                 end = 0
@@ -1460,6 +1554,8 @@ class ScheduleEngine:
 
             best_swap = None
             for swap_out in sorted(rest_days[worst], reverse=True):
+                if swap_out in forced_rest_days.get(worst, set()):
+                    continue
                 if swap_out >= v_start:
                     continue
                 if best_swap:
@@ -1478,6 +1574,8 @@ class ScheduleEngine:
                             continue
                         if t not in rest_days[pp['name']]:
                             continue
+                        if t in forced_rest_days.get(pp['name'], set()):
+                            continue
                         if swap_out in rest_days[pp['name']]:
                             continue
                         new_worst = (rest_days[worst] - {swap_out}) | {t}
@@ -1493,7 +1591,7 @@ class ScheduleEngine:
                                     ok = False
                                     break
                             else:
-                                if nmw > 6:
+                                if nmw > 5:
                                     ok = False
                                     break
                             if len(nr) != rest_target:
@@ -1528,9 +1626,9 @@ class ScheduleEngine:
                             break
                     mw = max(mw, pm_ws_b + cons_day1)
                 if name in self.rest_requests:
-                    if mw < 7:
+                    if mw < 6:
                         continue
-                elif mw < 7:
+                elif mw < 6:
                     continue
                 cur = 0
                 best_start, best_end, best_len = 0, 0, 0
@@ -1754,40 +1852,100 @@ class ScheduleEngine:
                 if w:
                     cur += 1
                     day = i + 1
-                    max_allowed = 6
+                    max_allowed = 5
                     if cur > max_allowed:
                         if day not in rest_days[name]:
                             rest_days[name].add(day)
-                            # 优先从超员日移除补偿（保持偏差均衡）
-                            self._remove_rest_from_overstaffed(name, rest_days, forced_rest_days, effective_target)
+                            # 优先从超员日移除补偿（保持偏差均衡），找不到补偿就回滚
+                            if not self._remove_rest_from_overstaffed(name, rest_days, forced_rest_days, effective_target):
+                                rest_days[name].discard(day)  # 保偏差=0，放弃此修复
+                            else:
+                                forced_rest_days[name].add(day)
                         cur = 0
                 else:
                     cur = 0
 
-        # Phase 5.6: 月内长连上最终强制修复（≥8天）
-        for p in self.online_staff:
-            name = p['name']
-            wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
-            mw = self._max_consecutive(wm)
-            if mw < 7:
-                continue
-            # 找到最长连续工作段
-            cur = 0
-            best_start, best_end, best_len = 0, 0, 0
-            for i, w in enumerate(wm):
-                if w:
-                    cur += 1
-                    if cur > best_len:
-                        best_len = cur
-                        best_end = i + 1
-                        best_start = best_end - cur + 1
-                else:
-                    cur = 0
-            # 在中间位置插入休息日，拆分为两段
-            mid = (best_start + best_end) // 2
-            if mid not in rest_days[name]:
-                rest_days[name].add(mid)
-                self._remove_rest_from_overstaffed(name, rest_days, forced_rest_days, effective_target)
+        # Phase 5.6: 月内长连上修复（≥6天）— 使用1:1休息日交换，保偏差=0
+        _p56_swapped = set()  # 防乒乓交换
+        for _ in range(50):
+            # 收集所有连上≥6的人，按连上长度降序
+            streak_info = []
+            for p in self.online_staff:
+                name = p['name']
+                wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
+                mw = self._max_consecutive(wm)
+                if mw < 6:
+                    continue
+                cur = 0
+                best_start, best_end, best_len = 0, 0, 0
+                for i, w in enumerate(wm):
+                    if w:
+                        cur += 1
+                        if cur > best_len:
+                            best_len = cur
+                            best_end = i + 1
+                            best_start = best_end - cur + 1
+                    else:
+                        cur = 0
+                streak_info.append((best_len, name, best_start, best_end, wm))
+            if not streak_info:
+                break
+            streak_info.sort(key=lambda x: -x[0])
+            found_any = False
+            for _, name, best_start, best_end, wm in streak_info:
+                if found_any:
+                    break
+                # 优先尝试在连上段内插入休息日：尝试 best_start+2 到 best_end-1
+                target_days = list(range(best_start + 2, best_end))
+                if best_len == 6:
+                    # 对于恰好6天，优先尝试 best_start+3（break into 3+3）
+                    target_days.sort(key=lambda d: abs(d - (best_start + 3)))
+                # A 的非强制休息日（不在连上段内的优先）
+                a_rests = sorted(
+                    [d for d in rest_days[name] if d not in forced_rest_days.get(name, set())],
+                    key=lambda d: 0 if best_start <= d <= best_end else 1
+                )
+                for target in target_days:
+                    if found_any:
+                        break
+                    if target in rest_days[name]:
+                        continue
+                    for give_day in a_rests:
+                        if found_any:
+                            break
+                        if give_day == target:
+                            continue
+                        # 找交换伙伴 B：在 target 休息（非强制），在 give_day 工作
+                        for p2 in self.online_staff:
+                            if found_any:
+                                break
+                            b_name = p2['name']
+                            if b_name == name:
+                                continue
+                            pair_key = frozenset({name, b_name})
+                            if pair_key in _p56_swapped:
+                                continue
+                            if target in forced_rest_days.get(b_name, set()):
+                                continue
+                            b_wm = [d not in rest_days[b_name] for d in range(1, self.num_days + 1)]
+                            if b_wm[target - 1] or not b_wm[give_day - 1]:
+                                continue
+                            # 尝试交换
+                            a_new_rests = (rest_days[name] | {target}) - {give_day}
+                            b_new_rests = (rest_days[b_name] | {give_day}) - {target}
+                            a_new_wm = [d not in a_new_rests for d in range(1, self.num_days + 1)]
+                            b_new_wm = [d not in b_new_rests for d in range(1, self.num_days + 1)]
+                            a_new_rm = [d in a_new_rests for d in range(1, self.num_days + 1)]
+                            b_new_rm = [d in b_new_rests for d in range(1, self.num_days + 1)]
+                            if (self._max_consecutive(a_new_wm) <= 5 and self._max_consecutive(a_new_rm) <= 2 and
+                                self._max_consecutive(b_new_wm) <= 5 and self._max_consecutive(b_new_rm) <= 2):
+                                rest_days[name] = a_new_rests
+                                rest_days[b_name] = b_new_rests
+                                forced_rest_days[name].add(target)
+                                _p56_swapped.add(pair_key)
+                                found_any = True
+            if not found_any:
+                break
 
         # Phase 5.7: 均衡偏差（使用原始target与verification一致）
         buru_work = [1 if self.is_workday(d) else 0 for d in range(1, self.num_days + 1)]
@@ -1817,7 +1975,18 @@ class ScheduleEngine:
                                 wm = [d not in test_rest for d in range(1, self.num_days + 1)]
                                 rm = [d in test_rest for d in range(1, self.num_days + 1)]
                                 mw, mr = self._max_consecutive(wm), self._max_consecutive(rm)
-                                if mw <= 6 and mr <= 2:
+                                # 跨月检查：上月结转+本月月初连续工作不能超标
+                                pm_ws_chk = pm.get('work_streak', {}).get(name, 0)
+                                cross_ok = True
+                                if pm_ws_chk > 0:
+                                    cons = 0
+                                    for w in wm:
+                                        if w:
+                                            cons += 1
+                                        else:
+                                            break
+                                    cross_ok = (pm_ws_chk + cons <= 5)
+                                if mw <= 5 and mr <= 2 and cross_ok:
                                     rest_days[name].remove(under_d)
                                     rest_days[name].add(over_d)
                                     improved = True
@@ -1847,13 +2016,307 @@ class ScheduleEngine:
                             wm = [d not in test_rest for d in range(1, self.num_days + 1)]
                             rm = [d in test_rest for d in range(1, self.num_days + 1)]
                             mw, mr = self._max_consecutive(wm), self._max_consecutive(rm)
-                            if mw <= 6 and mr <= 2:
+                            # 跨月检查：上月结转+本月月初连续工作不能超标
+                            pm_ws_chk = pm.get('work_streak', {}).get(name, 0)
+                            cross_ok = True
+                            if pm_ws_chk > 0:
+                                cons = 0
+                                for w in wm:
+                                    if w:
+                                        cons += 1
+                                    else:
+                                        break
+                                cross_ok = (pm_ws_chk + cons <= 5)
+                            if mw <= 5 and mr <= 2 and cross_ok:
                                 rest_days[name].remove(under_d)
                                 rest_days[name].add(over_d)
                                 improved = True
                                 break
             if not improved:
                 break
+
+        # Phase 5.8: 跨月连上均匀分摊 — 高连上人用月末休息换低连上人月初休息，偏差不变、休息数不变
+        _p58_swapped_pairs = set()  # 防止同一对来回乒乓交换
+        for _iter58 in range(800):
+            cross_scores = []
+            for p in self.online_staff:
+                name = p['name']
+                pm_ws = pm.get('work_streak', {}).get(name, 0)
+                wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
+                mw = self._max_consecutive(wm)
+                if pm_ws > 0:
+                    cons = 0
+                    for w in wm:
+                        if w: cons += 1
+                        else: break
+                    mw = max(mw, pm_ws + cons)
+                cross_scores.append((mw, name))
+            cross_scores.sort(key=lambda x: -x[0])
+            swapped_any = False
+            for hi_idx in range(len(cross_scores)):
+                if swapped_any: break
+                max_cs, max_name = cross_scores[hi_idx]
+                if max_cs <= 5: continue
+                for lo_idx in range(len(cross_scores) - 1, -1, -1):
+                    if swapped_any: break
+                    if lo_idx <= hi_idx: break
+                    min_cs, min_name = cross_scores[lo_idx]
+                    if max_cs - min_cs <= 1: continue
+                    pair_key = frozenset((max_name, min_name))
+                    if pair_key in _p58_swapped_pairs: continue
+                    high_wm = [d not in rest_days[max_name] for d in range(1, self.num_days + 1)]
+                    low_wm = [d not in rest_days[min_name] for d in range(1, self.num_days + 1)]
+                    found_pair = False
+                    for day in range(1, 8):
+                        if found_pair: break
+                        if day in forced_rest_days.get(min_name, set()): continue
+                        if not low_wm[day - 1] and high_wm[day - 1]:
+                            early_rest = day
+                            for lday in range(self.num_days, 14, -1):
+                                if found_pair: break
+                                if lday in forced_rest_days.get(max_name, set()): continue
+                                if not high_wm[lday - 1] and low_wm[lday - 1]:
+                                    late_rest = lday
+                                    test_high = (rest_days[max_name] | {early_rest}) - {late_rest}
+                                    test_low = (rest_days[min_name] | {late_rest}) - {early_rest}
+                                    test_high_wm = [d not in test_high for d in range(1, self.num_days + 1)]
+                                    test_low_wm = [d not in test_low for d in range(1, self.num_days + 1)]
+                                    test_high_rm = [d in test_high for d in range(1, self.num_days + 1)]
+                                    test_low_rm = [d in test_low for d in range(1, self.num_days + 1)]
+                                    h_mw = self._max_consecutive(test_high_wm)
+                                    h_mr = self._max_consecutive(test_high_rm)
+                                    l_mw = self._max_consecutive(test_low_wm)
+                                    l_mr = self._max_consecutive(test_low_rm)
+                                    h_pm = pm.get('work_streak', {}).get(max_name, 0)
+                                    l_pm = pm.get('work_streak', {}).get(min_name, 0)
+                                    h_cons = 0
+                                    for w in test_high_wm:
+                                        if w: h_cons += 1
+                                        else: break
+                                    l_cons = 0
+                                    for w in test_low_wm:
+                                        if w: l_cons += 1
+                                        else: break
+                                    new_h_cross = max(h_mw, h_pm + h_cons) if h_pm > 0 else h_mw
+                                    new_l_cross = max(l_mw, l_pm + l_cons) if l_pm > 0 else l_mw
+                                    if (h_mw <= 6 and h_mr <= 2 and l_mw <= 6 and l_mr <= 2 and
+                                        new_h_cross < max_cs and new_l_cross > min_cs and
+                                        new_l_cross <= 6):
+                                        rest_days[max_name] = test_high
+                                        rest_days[min_name] = test_low
+                                        _p58_swapped_pairs.add(pair_key)
+                                        forced_rest_days.setdefault(max_name, set()).add(early_rest)
+                                        swapped_any = True
+                                        found_pair = True
+            if not swapped_any:
+                break
+
+        # Phase 5.9: 跨月连上均匀分摊 — 高跨月者用靠后休息换低跨月者靠前休息
+        _p59_swapped = set()
+        for _iter in range(200):
+            cross_map = {}
+            for p in self.online_staff:
+                name = p['name']
+                pm_ws = pm.get('work_streak', {}).get(name, 0)
+                wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
+                if pm_ws > 0:
+                    cons = 0
+                    for w in wm:
+                        if w: cons += 1
+                        else: break
+                    cross_map[name] = pm_ws + cons
+                else:
+                    cross_map[name] = 0
+            highs = [(n, cross_map[n]) for n in cross_map if cross_map[n] >= 6]
+            if not highs:
+                break
+            highs.sort(key=lambda x: -x[1])
+            swapped_any = False
+            for sname, s_cross in highs:
+                s_wm = [d not in rest_days[sname] for d in range(1, self.num_days + 1)]
+                s_pm = pm.get('work_streak', {}).get(sname, 0)
+                first_rest = None
+                for d in range(1, self.num_days + 1):
+                    if not s_wm[d - 1]:
+                        first_rest = d
+                        break
+                if first_rest is None or first_rest == 1:
+                    continue
+                s_non_forced = sorted([d for d in rest_days[sname]
+                                       if d not in forced_rest_days.get(sname, set())],
+                                      reverse=True)
+                low_candidates = sorted(cross_map.keys(), key=lambda n: cross_map[n])
+                for fname in low_candidates:
+                    f_cross = cross_map[fname]
+                    if sname == fname: continue
+                    if s_cross - f_cross <= 1: continue
+                    pair_key = frozenset({sname, fname})
+                    if pair_key in _p59_swapped: continue
+                    f_wm = [d not in rest_days[fname] for d in range(1, self.num_days + 1)]
+                    f_pm = pm.get('work_streak', {}).get(fname, 0)
+                    found_pair = False
+                    for day in range(1, first_rest):
+                        if found_pair: break
+                        if day in forced_rest_days.get(fname, set()): continue
+                        if not f_wm[day - 1] and s_wm[day - 1]:
+                            # 预检：fname 交出 day 休息日后，月内连上是否会超标？
+                            tf_pre = rest_days[fname] - {day}
+                            tf_pre_wm = [d not in tf_pre for d in range(1, self.num_days + 1)]
+                            if self._max_consecutive(tf_pre_wm) > 5:
+                                continue
+                            for give_day in s_non_forced:
+                                if found_pair: break
+                                if give_day <= day: continue
+                                if give_day in rest_days[fname]: continue
+                                if not f_wm[give_day - 1]: continue
+                                ts = (rest_days[sname] | {day}) - {give_day}
+                                tf = (rest_days[fname] | {give_day}) - {day}
+                                ts_wm = [d not in ts for d in range(1, self.num_days + 1)]
+                                tf_wm = [d not in tf for d in range(1, self.num_days + 1)]
+                                ts_rm = [d in ts for d in range(1, self.num_days + 1)]
+                                tf_rm = [d in tf for d in range(1, self.num_days + 1)]
+                                s_cons = 0
+                                for w in ts_wm:
+                                    if w: s_cons += 1
+                                    else: break
+                                f_cons = 0
+                                for w in tf_wm:
+                                    if w: f_cons += 1
+                                    else: break
+                                new_s = max(self._max_consecutive(ts_wm), s_pm + s_cons) if s_pm > 0 else self._max_consecutive(ts_wm)
+                                new_f = max(self._max_consecutive(tf_wm), f_pm + f_cons) if f_pm > 0 else self._max_consecutive(tf_wm)
+                                s_mw_val = self._max_consecutive(ts_wm)
+                                s_mr_val = self._max_consecutive(ts_rm)
+                                f_mw_val = self._max_consecutive(tf_wm)
+                                f_mr_val = self._max_consecutive(tf_rm)
+                                new_f_ok = new_f <= 5 if f_pm > 0 else True
+                                ok = (s_mw_val <= 5 and s_mr_val <= 2 and
+                                      f_mw_val <= 5 and f_mr_val <= 2 and
+                                      new_s < s_cross and new_f_ok)
+                                if ok:
+                                    rest_days[sname] = ts
+                                    rest_days[fname] = tf
+                                    forced_rest_days.setdefault(sname, set()).add(day)
+                                    _p59_swapped.add(pair_key)
+                                    found_pair = True
+                                    swapped_any = True
+                                    cross_map[sname] = new_s
+                                    cross_map[fname] = new_f
+                    if found_pair:
+                        s_cross = cross_map[sname]
+                        if s_cross <= 5:
+                            break
+            if not swapped_any:
+                break
+
+        # Phase 5.9b: 修复 Phase 5.9 交换可能引入的月内连上≥6
+        for _ in range(50):
+            streak_info = []
+            for p in self.online_staff:
+                name = p['name']
+                wm = [d not in rest_days[name] for d in range(1, self.num_days + 1)]
+                mw = self._max_consecutive(wm)
+                if mw < 6:
+                    continue
+                cur = 0
+                best_start, best_end, best_len = 0, 0, 0
+                for i, w in enumerate(wm):
+                    if w:
+                        cur += 1
+                        if cur > best_len:
+                            best_len = cur
+                            best_end = i + 1
+                            best_start = best_end - cur + 1
+                    else:
+                        cur = 0
+                streak_info.append((best_len, name, best_start, best_end, wm))
+            if not streak_info:
+                break
+            streak_info.sort(key=lambda x: -x[0])
+            found_any = False
+            for _, name, best_start, best_end, wm in streak_info:
+                if found_any:
+                    break
+                target_days = list(range(best_start + 2, best_end))
+                if best_len == 6:
+                    target_days.sort(key=lambda d: abs(d - (best_start + 3)))
+                a_rests = sorted(
+                    [d for d in rest_days[name] if d not in forced_rest_days.get(name, set())],
+                    key=lambda d: 0 if best_start <= d <= best_end else 1
+                )
+                for target in target_days:
+                    if found_any:
+                        break
+                    if target in rest_days[name]:
+                        continue
+                    for give_day in a_rests:
+                        if found_any:
+                            break
+                        if give_day == target:
+                            continue
+                        for p2 in self.online_staff:
+                            if found_any:
+                                break
+                            b_name = p2['name']
+                            if b_name == name:
+                                continue
+                            if target in forced_rest_days.get(b_name, set()):
+                                continue
+                            b_wm = [d not in rest_days[b_name] for d in range(1, self.num_days + 1)]
+                            if b_wm[target - 1] or not b_wm[give_day - 1]:
+                                continue
+                            a_new_rests = (rest_days[name] | {target}) - {give_day}
+                            b_new_rests = (rest_days[b_name] | {give_day}) - {target}
+                            a_new_wm = [d not in a_new_rests for d in range(1, self.num_days + 1)]
+                            b_new_wm = [d not in b_new_rests for d in range(1, self.num_days + 1)]
+                            a_new_rm = [d in a_new_rests for d in range(1, self.num_days + 1)]
+                            b_new_rm = [d in b_new_rests for d in range(1, self.num_days + 1)]
+                            if (self._max_consecutive(a_new_wm) <= 5 and self._max_consecutive(a_new_rm) <= 2 and
+                                self._max_consecutive(b_new_wm) <= 5 and self._max_consecutive(b_new_rm) <= 2):
+                                rest_days[name] = a_new_rests
+                                rest_days[b_name] = b_new_rests
+                                forced_rest_days[name].add(target)
+                                found_any = True
+            if not found_any:
+                break
+
+        # Phase 5.10: 休息日数量平衡（纠正前序阶段可能引入的偏差）
+        overs = [(p['name'], len(rest_days[p['name']])) for p in self.online_staff
+                 if len(rest_days[p['name']]) > rest_target]
+        unders = [(p['name'], len(rest_days[p['name']])) for p in self.online_staff
+                  if len(rest_days[p['name']]) < rest_target]
+        _p510_swapped = set()
+        for oname, ocount in overs:
+            for uname, ucount in unders:
+                if ocount <= rest_target or ucount >= rest_target:
+                    continue
+                pair_key = frozenset({oname, uname})
+                if pair_key in _p510_swapped:
+                    continue
+                # 从多余者找一个非强制休息日给不足者
+                for gday in sorted(rest_days[oname]):
+                    if gday in forced_rest_days.get(oname, set()):
+                        continue
+                    if gday in rest_days[uname]:
+                        continue  # 不足者已在这天休息
+                    # 检查不足者在 gday 是否工作
+                    if gday not in rest_days[uname]:
+                        o_new = rest_days[oname] - {gday}
+                        u_new = rest_days[uname] | {gday}
+                        o_wm = [d not in o_new for d in range(1, self.num_days + 1)]
+                        u_wm = [d not in u_new for d in range(1, self.num_days + 1)]
+                        o_rm = [d in o_new for d in range(1, self.num_days + 1)]
+                        u_rm = [d in u_new for d in range(1, self.num_days + 1)]
+                        if (self._max_consecutive(o_wm) <= 5 and self._max_consecutive(o_rm) <= 2 and
+                            self._max_consecutive(u_wm) <= 5 and self._max_consecutive(u_rm) <= 2):
+                            rest_days[oname] = o_new
+                            rest_days[uname] = u_new
+                            ocount -= 1
+                            ucount += 1
+                            _p510_swapped.add(pair_key)
+                            break
+                if ocount <= rest_target:
+                    break
 
         _tick("Phase 6")
         # Phase 6: Assign shifts
@@ -1865,13 +2328,15 @@ class ScheduleEngine:
         balance = {p['name']: {'early': 0, 'late': 0} for p in self.online_staff}
         jd_count = {p['name']: 0 for p in self.online_staff}
         wan2_count = {p['name']: 0 for p in self.online_staff}
+        zaozao2_count = {p['name']: 0 for p in self.online_staff}
 
         for day in range(1, self.num_days + 1):
             working = [p for p in self.online_staff if day not in rest_days[p['name']]]
             if day == 1:
                 _tick(f"Phase 6 day 1 start, n_workers={len(working)}")
             self._assign_shifts_for_day(working, day, prev_shift, rest_days,
-                                        fenxiao_rest_days, schedules, balance, jd_count, wan2_count)
+                                        fenxiao_rest_days, schedules, balance, jd_count, wan2_count,
+                                        zaozao2_count)
             for p in working:
                 prev_shift[p['name']] = schedules[p['name']][day - 1]
             for p in self.online_staff:
@@ -1903,6 +2368,9 @@ class ScheduleEngine:
             print(f"  [diag] 最终无≥2缺口, 最大偏差={max(abs(g) for g in gaps_final)}", flush=True)
 
         _tick("Phase 6 完成, 即将返回")
+        if zhou_sched:
+            schedules[zhou_name] = zhou_sched
+            self.online_staff = original_online_staff
         return schedules
 
     # ── 生成入口 ──
@@ -1961,7 +2429,7 @@ class ScheduleEngine:
             if late_early > 0:
                 flag += f' 晚接早x{late_early}'
 
-            # 跨月最大连上：上月连上 + 本月月初连续工作
+            # 跨月最大连上：仅计算上月结转部分，不混入当月内部连上
             pm_ws = self.prev_month_data.get('work_streak', {}).get(person['name'], 0)
             start_work = 0
             for s in sched:
@@ -1969,7 +2437,7 @@ class ScheduleEngine:
                     start_work += 1
                 else:
                     break
-            cross_mw = max(mw, pm_ws + start_work) if pm_ws > 0 else mw
+            cross_mw = pm_ws + start_work if pm_ws > 0 else 0
 
             entry = {
                 'name': person['name'], 'id': person.get('id', ''),
@@ -1979,7 +2447,7 @@ class ScheduleEngine:
             if cat == '分销':
                 zao = sum(1 for s in sched if s == ZAO_ZAO_IM)
                 wan = sum(1 for s in sched if s == WAN_YI_IM)
-                jd = sum(1 for s in sched if s == BAI_BAN_JD)
+                jd = sum(1 for s in sched if s == XING_ZHENG_JD)
                 entry['zao_im'] = zao
                 entry['wan_im'] = wan
                 entry['jidong'] = jd
@@ -2040,6 +2508,25 @@ class ScheduleEngine:
                             break
                     if not found:
                         cross_issues.append(f'{name}上月连上{ws_val}天→本月不在排班中')
+            # 也检查跨月合并后连上>5但上月连上<5的人（如7月末连上3+8月初连上4=7）
+            for name, ws_val in work_streak_map.items():
+                if ws_val == 0 or ws_val >= 5:
+                    continue
+                for cat_key, cat_sched in [('online', schedules['online']), ('fenxiao', schedules['fenxiao']),
+                                           ('night_shift', schedules['night_shift']),
+                                           ('buru_ban', schedules['buru_ban']),
+                                           ('buru_support', schedules['buru_support'])]:
+                    if name in cat_sched:
+                        start_work = 0
+                        for s in cat_sched[name]:
+                            if s != XI:
+                                start_work += 1
+                            else:
+                                break
+                        combined = ws_val + start_work
+                        if combined > 5:
+                            cross_issues.append(f'{name}跨月连上{combined}天(上月{ws_val}+本月{start_work})')
+                        break
             cross_month['work_streak_ok'] = len(cross_issues) == 0
             cross_month['cross_issues'] = cross_issues
 
@@ -2057,7 +2544,7 @@ class ScheduleEngine:
             cross_month['late_early_issues'] = late_early_issues
 
         # 班次每日统计（每个班次每天几人 + 合计，大夜单独）
-        online_shift_types = [ZAO_BAN, ZAO_SAN, ZAO_ZAO_2, XING_ZHENG, BAI_BAN, BAI_BAN_JD,
+        online_shift_types = [ZAO_BAN, ZAO_SAN, ZAO_ZAO_2, XING_ZHENG, BAI_BAN, XING_ZHENG_JD,
                               ZHONG_SAN, ZHONG_SI, WAN_YI, WAN_ER, ZAO_ZAO_IM, WAN_YI_IM]
         shift_daily = []
         for s_type in online_shift_types:
@@ -2145,7 +2632,7 @@ class ScheduleEngine:
             XING_ZHENG: 'FFF3E0', ZAO_BAN: 'E3F2FD', ZAO_SAN: 'F3E5F5',
             BAI_BAN: 'E8F5E9', ZHONG_SAN: 'E0F7FA', ZHONG_SI: 'FFF8E1',
             WAN_YI: 'FCE4EC', WAN_ER: 'EDE7F6', DA_YE: 'FFFFFF',
-            ZAO_ZAO_IM: 'FFFF00', WAN_YI_IM: 'FFFF00', BAI_BAN_JD: 'EE822F',
+            ZAO_ZAO_IM: 'FFFF00', WAN_YI_IM: 'FFFF00', XING_ZHENG_JD: 'EE822F',
             ZAO_ZAO_2: 'D1C4E9',
             CHANG_BAI: 'FFFFFF',
         }
@@ -2171,7 +2658,7 @@ class ScheduleEngine:
         # Person-level summary headers (AI-AU)
         summary_start = 3 + self.num_days + 1
         summary_headers = [
-            XI, XING_ZHENG, BAI_BAN_JD, WAN_ER,
+            XI, XING_ZHENG, XING_ZHENG_JD, WAN_ER,
             ZAO_ZAO_IM, ZAO_BAN, ZAO_SAN, BAI_BAN,
             ZHONG_SAN, ZHONG_SI, WAN_YI, WAN_ER, DA_YE,
             ZAO_ZAO_2,
@@ -2225,7 +2712,7 @@ class ScheduleEngine:
             formulas = [
                 (summary_start, f'=COUNTIF({d_range},"{XI}")+COUNTIF({d_range},"{QING_JIA}")'),
                 (summary_start + 1, f'=COUNTIF({e_range},"{XING_ZHENG}")'),
-                (summary_start + 2, f'=COUNTIF({e_range},"{BAI_BAN_JD}")'),
+                (summary_start + 2, f'=COUNTIF({e_range},"{XING_ZHENG_JD}")'),
                 (summary_start + 3, f'=COUNTIF({e_range},"{WAN_ER}")'),
                 (summary_start + 4, f'=COUNTIF({d_range},"{ZAO_ZAO_IM}")'),
                 (summary_start + 5, f'=COUNTIF({d_range},"{ZAO_BAN}")'),
@@ -2333,7 +2820,7 @@ class ScheduleEngine:
 
         # Summary Group 2: IM / 机动
         fx_range = f"{{col}}{fx_start_row}:{{col}}{online_end_row}"
-        group2_shifts = [ZAO_ZAO_IM, WAN_YI_IM, BAI_BAN_JD]
+        group2_shifts = [ZAO_ZAO_IM, WAN_YI_IM, XING_ZHENG_JD]
         group2_start_row = row
         for shift_type in group2_shifts:
             ws.row_dimensions[row].height = 33

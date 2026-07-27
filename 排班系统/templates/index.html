@@ -921,7 +921,7 @@ function renderTargetInputs(days) {
 // ── 解析人员文本 ──
 // ── 人员分组管理 ──
 const STORAGE_KEY = 'schedule_groups';
-let _groups = { fenxiao: [], night_shift: [], buru_ban: [], buru_support: [] };
+let _groups = { banzhang: [], fenxiao: [], night_shift: [], buru_ban: [], buru_support: [] };
 let _nightGroups = {};  // name → 'A'|'B'
 let _allStaffNames = [];
 let _restRequests = {};  // 员工请休需求 {"张三": [3,5,15]}
@@ -936,6 +936,7 @@ function loadGroupData() {
       _restRequests = data.restRequests || {};
       // 确保新字段存在
       if (!_groups.buru_support) _groups.buru_support = [];
+      if (!_groups.banzhang) _groups.banzhang = [];
     }
   } catch(e) {}
   for (const k of Object.keys(_groups)) {
@@ -1012,7 +1013,7 @@ function renderGroup(key, tagId) {
 function renderOnlineInfo() {
   const total = _allStaffNames.length;
   if (!total) { document.getElementById('onlineInfo').innerHTML = '在线轮转：<strong>--</strong> 人'; return; }
-  const excluded = new Set([..._groups.fenxiao, ..._groups.night_shift, ..._groups.buru_ban, ..._groups.buru_support, '李玲', '何丹妮', '曾瑾']);
+  const excluded = new Set([..._groups.banzhang, ..._groups.fenxiao, ..._groups.night_shift, ..._groups.buru_ban, ..._groups.buru_support]);
   const onlineNames = _allStaffNames.filter(n => !excluded.has(n));
   document.getElementById('onlineInfo').innerHTML = '在线轮转：<strong>' + onlineNames.length + '</strong> 人  <span style="font-size:11px;color:#64748b">（' + onlineNames.join('、') + '）</span>';
 }
@@ -1141,7 +1142,7 @@ function applyConfig(config) {
   // 优先使用服务端保存的分组配置
   loadGroupData();  // 从 localStorage 加载作为基准
   if (config.groups) {
-    _groups = { fenxiao: [], night_shift: [], buru_ban: [], buru_support: [], ...config.groups };
+    _groups = { banzhang: [], fenxiao: [], night_shift: [], buru_ban: [], buru_support: [], ...config.groups };
   }
   if (config.night_groups) {
     _nightGroups = { ..._nightGroups, ...config.night_groups };
@@ -1561,7 +1562,7 @@ async function calculateTargets() {
   if (!_sourceUploaded) { setStatus('请先上传原始数据', 'error'); return; }
 
   const config = buildConfig();
-  _onlineCount = _allStaffNames.length - _groups.fenxiao.length - _groups.night_shift.length - 2;
+  _onlineCount = _allStaffNames.length - _groups.banzhang.length - _groups.fenxiao.length - _groups.night_shift.length - _groups.buru_support.length;
 
   setStatus('正在计算每日目标...');
   try {
