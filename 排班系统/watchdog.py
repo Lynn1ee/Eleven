@@ -53,29 +53,38 @@ def check_port() -> bool:
         return False
 
 
-def kill_server():
-    """杀死 server.py 相关进程，排除 watchdog 自身"""
-    my_pid = str(os.getpid())
+def get_port_owner(port):
+    """用 netstat 查出占用指定端口的进程 PID，无占用返回 None。"""
     try:
         result = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
-            capture_output=True, text=True, timeout=10,
+            ["netstat", "-ano", "-p", "TCP"],
+            capture_output=True, text=True, timeout=5,
         )
-        for line in result.stdout.strip().split("\n"):
-            parts = line.replace('"', '').split(",")
-            if len(parts) >= 2:
-                pid = parts[1].strip()
-                if pid and pid != my_pid:
-                    try:
-                        subprocess.run(
-                            ["taskkill", "/F", "/PID", pid],
-                            capture_output=True, timeout=5,
-                        )
-                        log(f"已终止进程 {pid}")
-                    except Exception:
-                        pass
+        for line in result.stdout.splitlines():
+            if f":{port}" in line and "LISTENING" in line:
+                parts = line.strip().split()
+                return int(parts[-1])
     except Exception:
         pass
+    return None
+
+
+def kill_server():
+    """精准杀掉占用排班系统端口的进程，不误伤其他服务。"""
+    port_owner = get_port_owner(PORT)
+    if port_owner is None:
+        log(f"端口 {PORT} 无占用进程，无需清理")
+        return
+    if port_owner == os.getpid():
+        return
+    try:
+        subprocess.run(
+            ["taskkill", "/F", "/PID", str(port_owner)],
+            capture_output=True, timeout=5,
+        )
+        log(f"已终止占用端口 {PORT} 的进程 (PID {port_owner})")
+    except Exception as e:
+        log(f"终止进程 {port_owner} 失败: {e}")
     time.sleep(2)
 
 
