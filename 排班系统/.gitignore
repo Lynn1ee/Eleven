@@ -1,0 +1,15 @@
+# 运行时文件
+.watchdog_pid
+.watchdog_heartbeat
+watchdog.log
+watchdog_output.txt
+
+# 调试残留
+_*.txt
+_*.json
+
+# 上传数据
+data/uploaded_raw_data.xlsx
+
+# Python 缓存
+__pycache__/

@@ -12,6 +12,7 @@ sys.path.insert(0, SCRIPT_DIR)
 
 from schedule_engine import ScheduleEngine, DEFAULT_CONFIG
 from target_calculator import TargetCalculator
+from template_exporter import create_template_excel
 
 app = Flask(__name__)
 
@@ -41,6 +42,10 @@ def _save_config(config):
 # 内存中缓存最后一次生成的 Excel
 _last_excel = None
 _last_filename = 'schedule.xlsx'
+
+# 模版格式 Excel 缓存
+_last_template_excel = None
+_last_template_filename = 'schedule_template.xlsx'
 
 # 目标人数计算缓存
 _last_calculator = None
@@ -393,6 +398,12 @@ def generate():
         _last_filename = f'{month}月份班表.xlsx'
         print(f"  [server] create_excel() 完成 ({_st.time()-_t0:.2f}s)", flush=True)
 
+        # 生成模版格式 Excel
+        global _last_template_excel, _last_template_filename
+        _last_template_excel = create_template_excel(schedules, engine)
+        _last_template_filename = f'{month}月份在线客服班表.xlsx'
+        print(f"  [server] create_template_excel() 完成 ({_st.time()-_t0:.2f}s)", flush=True)
+
         # 收集节假日信息（含日期、名称、三薪标记）
         holidays = engine.get_all_holidays()
 
@@ -433,6 +444,21 @@ def download():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
         download_name=_last_filename,
+    )
+
+
+@app.route('/api/schedule/download-template', methods=['GET'])
+def download_schedule_template():
+    """下载最后一次生成的模版格式 Excel"""
+    global _last_template_excel, _last_template_filename
+    if _last_template_excel is None:
+        return jsonify({'success': False, 'error': '请先生成排班'})
+    _last_template_excel.seek(0)
+    return send_file(
+        _last_template_excel,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=_last_template_filename,
     )
 
 

@@ -808,6 +808,7 @@
       <button class="btn btn-primary" onclick="generate()" id="btnGenerate">生成排班</button>
     </div>
     <button class="btn btn-success" onclick="downloadExcel()" id="btnDownload" style="width:100%">下载 Excel</button>
+    <button class="btn btn-success" onclick="downloadTemplateSchedule()" id="btnDownloadTemplate" disabled style="width:100%;margin-top:6px">下载 在线客服班表</button>
     <div class="status-msg" id="statusMsg">就绪，请点击"生成排班"</div>
   </div>
 </aside>
@@ -1175,6 +1176,7 @@ async function generate() {
       renderPreview(data);
       if (data.diag) { renderDiag(data.diag); }
       document.getElementById('btnDownload').disabled = false;
+      document.getElementById('btnDownloadTemplate').disabled = false;
       // 更新日历信息
       renderCalendarInfo(data, parseInt($month.value));
       // 保存生成结果到 localStorage
@@ -1199,6 +1201,10 @@ async function generate() {
 
 function downloadExcel() {
   window.open('/api/schedule/download', '_blank');
+}
+
+function downloadTemplateSchedule() {
+  window.open('/api/schedule/download-template', '_blank');
 }
 
 function setStatus(msg, type) {
@@ -1707,6 +1713,7 @@ async function init() {
         renderPreview(result);
         if (result.diag) { renderDiag(result.diag); }
         document.getElementById('btnDownload').disabled = false;
+      document.getElementById('btnDownloadTemplate').disabled = false;
       }
     }
   } catch(e) {}

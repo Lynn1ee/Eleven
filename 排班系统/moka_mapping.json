@@ -1,0 +1,513 @@
+{
+  "description": "排班系统姓名/工号/moka工号映射 - 来自在线客服班表模版",
+  "staff": [
+    {
+      "moka_id": "HBGJ00155",
+      "emp_id": "75103",
+      "name": "曾瑾",
+      "leader": "李玲     何丹妮  曾瑾"
+    },
+    {
+      "moka_id": "HBGJ00133",
+      "emp_id": "63032",
+      "name": "何丹妮",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00115",
+      "emp_id": "62416",
+      "name": "李玲",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00234",
+      "emp_id": "32014",
+      "name": "陈佳慧",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00156",
+      "emp_id": "75105",
+      "name": "魏溪",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00962",
+      "emp_id": "63882",
+      "name": "李艾洛",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00260",
+      "emp_id": "63171",
+      "name": "李珂",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00964",
+      "emp_id": "63891",
+      "name": "杜梦薇",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00317",
+      "emp_id": "32054",
+      "name": "周妙笛",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00516",
+      "emp_id": "63661",
+      "name": "舒丹",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ0038",
+      "emp_id": "63480",
+      "name": "龚格",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00321",
+      "emp_id": "63367",
+      "name": "李蒙",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00908",
+      "emp_id": "63872",
+      "name": "葛宇",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00578",
+      "emp_id": "63704",
+      "name": "周雨襄",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00196",
+      "emp_id": "32007",
+      "name": "邹秋霞",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00743",
+      "emp_id": "63809",
+      "name": "贺亚兰",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00737",
+      "emp_id": "63810",
+      "name": "褚婉婷",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00806",
+      "emp_id": "63849",
+      "name": "邵今令",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00453",
+      "emp_id": "63574",
+      "name": "余晓芬",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00758",
+      "emp_id": "63819",
+      "name": "陈瑞楠",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00727",
+      "emp_id": "63802",
+      "name": "胡文思",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00976",
+      "emp_id": "63894",
+      "name": "徐学宇",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00313",
+      "emp_id": "63359",
+      "name": "罗小婷",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00958",
+      "emp_id": "63885",
+      "name": "张玉婕",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00586",
+      "emp_id": "63715",
+      "name": "盛坤坤",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00724",
+      "emp_id": "63805",
+      "name": "马宇杰",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00333",
+      "emp_id": "63388",
+      "name": "林雪薇",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00512",
+      "emp_id": "63655",
+      "name": "李娜",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ01002",
+      "emp_id": "63914",
+      "name": "范敏",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00792",
+      "emp_id": "63837",
+      "name": "张怡顺",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00973",
+      "emp_id": "63898",
+      "name": "王欣怡",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00524",
+      "emp_id": "63680",
+      "name": "张慧琳",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00488",
+      "emp_id": "63610",
+      "name": "余飞滔",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00184",
+      "emp_id": "75112",
+      "name": "王颖",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00918",
+      "emp_id": "63874",
+      "name": "陈文萍",
+      "leader": ""
+    },
+    {
+      "moka_id": "HBGJ00799",
+      "emp_id": "63845",
+      "name": "富惟佳",
+      "leader": ""
+    }
+  ],
+  "by_emp_id": {
+    "75103": {
+      "moka_id": "HBGJ00155",
+      "name": "曾瑾"
+    },
+    "63032": {
+      "moka_id": "HBGJ00133",
+      "name": "何丹妮"
+    },
+    "62416": {
+      "moka_id": "HBGJ00115",
+      "name": "李玲"
+    },
+    "32014": {
+      "moka_id": "HBGJ00234",
+      "name": "陈佳慧"
+    },
+    "75105": {
+      "moka_id": "HBGJ00156",
+      "name": "魏溪"
+    },
+    "63882": {
+      "moka_id": "HBGJ00962",
+      "name": "李艾洛"
+    },
+    "63171": {
+      "moka_id": "HBGJ00260",
+      "name": "李珂"
+    },
+    "63891": {
+      "moka_id": "HBGJ00964",
+      "name": "杜梦薇"
+    },
+    "32054": {
+      "moka_id": "HBGJ00317",
+      "name": "周妙笛"
+    },
+    "63661": {
+      "moka_id": "HBGJ00516",
+      "name": "舒丹"
+    },
+    "63480": {
+      "moka_id": "HBGJ0038",
+      "name": "龚格"
+    },
+    "63367": {
+      "moka_id": "HBGJ00321",
+      "name": "李蒙"
+    },
+    "63872": {
+      "moka_id": "HBGJ00908",
+      "name": "葛宇"
+    },
+    "63704": {
+      "moka_id": "HBGJ00578",
+      "name": "周雨襄"
+    },
+    "32007": {
+      "moka_id": "HBGJ00196",
+      "name": "邹秋霞"
+    },
+    "63809": {
+      "moka_id": "HBGJ00743",
+      "name": "贺亚兰"
+    },
+    "63810": {
+      "moka_id": "HBGJ00737",
+      "name": "褚婉婷"
+    },
+    "63849": {
+      "moka_id": "HBGJ00806",
+      "name": "邵今令"
+    },
+    "63574": {
+      "moka_id": "HBGJ00453",
+      "name": "余晓芬"
+    },
+    "63819": {
+      "moka_id": "HBGJ00758",
+      "name": "陈瑞楠"
+    },
+    "63802": {
+      "moka_id": "HBGJ00727",
+      "name": "胡文思"
+    },
+    "63894": {
+      "moka_id": "HBGJ00976",
+      "name": "徐学宇"
+    },
+    "63359": {
+      "moka_id": "HBGJ00313",
+      "name": "罗小婷"
+    },
+    "63885": {
+      "moka_id": "HBGJ00958",
+      "name": "张玉婕"
+    },
+    "63715": {
+      "moka_id": "HBGJ00586",
+      "name": "盛坤坤"
+    },
+    "63805": {
+      "moka_id": "HBGJ00724",
+      "name": "马宇杰"
+    },
+    "63388": {
+      "moka_id": "HBGJ00333",
+      "name": "林雪薇"
+    },
+    "63655": {
+      "moka_id": "HBGJ00512",
+      "name": "李娜"
+    },
+    "63914": {
+      "moka_id": "HBGJ01002",
+      "name": "范敏"
+    },
+    "63837": {
+      "moka_id": "HBGJ00792",
+      "name": "张怡顺"
+    },
+    "63898": {
+      "moka_id": "HBGJ00973",
+      "name": "王欣怡"
+    },
+    "63680": {
+      "moka_id": "HBGJ00524",
+      "name": "张慧琳"
+    },
+    "63610": {
+      "moka_id": "HBGJ00488",
+      "name": "余飞滔"
+    },
+    "75112": {
+      "moka_id": "HBGJ00184",
+      "name": "王颖"
+    },
+    "63874": {
+      "moka_id": "HBGJ00918",
+      "name": "陈文萍"
+    },
+    "63845": {
+      "moka_id": "HBGJ00799",
+      "name": "富惟佳"
+    }
+  },
+  "by_name": {
+    "曾瑾": {
+      "moka_id": "HBGJ00155",
+      "emp_id": "75103"
+    },
+    "何丹妮": {
+      "moka_id": "HBGJ00133",
+      "emp_id": "63032"
+    },
+    "李玲": {
+      "moka_id": "HBGJ00115",
+      "emp_id": "62416"
+    },
+    "陈佳慧": {
+      "moka_id": "HBGJ00234",
+      "emp_id": "32014"
+    },
+    "魏溪": {
+      "moka_id": "HBGJ00156",
+      "emp_id": "75105"
+    },
+    "李艾洛": {
+      "moka_id": "HBGJ00962",
+      "emp_id": "63882"
+    },
+    "李珂": {
+      "moka_id": "HBGJ00260",
+      "emp_id": "63171"
+    },
+    "杜梦薇": {
+      "moka_id": "HBGJ00964",
+      "emp_id": "63891"
+    },
+    "周妙笛": {
+      "moka_id": "HBGJ00317",
+      "emp_id": "32054"
+    },
+    "舒丹": {
+      "moka_id": "HBGJ00516",
+      "emp_id": "63661"
+    },
+    "龚格": {
+      "moka_id": "HBGJ0038",
+      "emp_id": "63480"
+    },
+    "李蒙": {
+      "moka_id": "HBGJ00321",
+      "emp_id": "63367"
+    },
+    "葛宇": {
+      "moka_id": "HBGJ00908",
+      "emp_id": "63872"
+    },
+    "周雨襄": {
+      "moka_id": "HBGJ00578",
+      "emp_id": "63704"
+    },
+    "邹秋霞": {
+      "moka_id": "HBGJ00196",
+      "emp_id": "32007"
+    },
+    "贺亚兰": {
+      "moka_id": "HBGJ00743",
+      "emp_id": "63809"
+    },
+    "褚婉婷": {
+      "moka_id": "HBGJ00737",
+      "emp_id": "63810"
+    },
+    "邵今令": {
+      "moka_id": "HBGJ00806",
+      "emp_id": "63849"
+    },
+    "余晓芬": {
+      "moka_id": "HBGJ00453",
+      "emp_id": "63574"
+    },
+    "陈瑞楠": {
+      "moka_id": "HBGJ00758",
+      "emp_id": "63819"
+    },
+    "胡文思": {
+      "moka_id": "HBGJ00727",
+      "emp_id": "63802"
+    },
+    "徐学宇": {
+      "moka_id": "HBGJ00976",
+      "emp_id": "63894"
+    },
+    "罗小婷": {
+      "moka_id": "HBGJ00313",
+      "emp_id": "63359"
+    },
+    "张玉婕": {
+      "moka_id": "HBGJ00958",
+      "emp_id": "63885"
+    },
+    "盛坤坤": {
+      "moka_id": "HBGJ00586",
+      "emp_id": "63715"
+    },
+    "马宇杰": {
+      "moka_id": "HBGJ00724",
+      "emp_id": "63805"
+    },
+    "林雪薇": {
+      "moka_id": "HBGJ00333",
+      "emp_id": "63388"
+    },
+    "李娜": {
+      "moka_id": "HBGJ00512",
+      "emp_id": "63655"
+    },
+    "范敏": {
+      "moka_id": "HBGJ01002",
+      "emp_id": "63914"
+    },
+    "张怡顺": {
+      "moka_id": "HBGJ00792",
+      "emp_id": "63837"
+    },
+    "王欣怡": {
+      "moka_id": "HBGJ00973",
+      "emp_id": "63898"
+    },
+    "张慧琳": {
+      "moka_id": "HBGJ00524",
+      "emp_id": "63680"
+    },
+    "余飞滔": {
+      "moka_id": "HBGJ00488",
+      "emp_id": "63610"
+    },
+    "王颖": {
+      "moka_id": "HBGJ00184",
+      "emp_id": "75112"
+    },
+    "陈文萍": {
+      "moka_id": "HBGJ00918",
+      "emp_id": "63874"
+    },
+    "富惟佳": {
+      "moka_id": "HBGJ00799",
+      "emp_id": "63845"
+    }
+  }
+}

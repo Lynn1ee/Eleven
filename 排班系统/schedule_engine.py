@@ -35,6 +35,7 @@ DA_YE = '大夜'
 ZAO_ZAO_2 = '早早2'
 TIAN_DI = '天地班'
 QING_JIA = '请假'
+CHANG_BAI_ZAO = '长白-早'
 
 LATE_SHIFTS = {ZHONG_SAN, ZHONG_SI, WAN_YI, WAN_ER, WAN_YI_IM}
 EARLY_SHIFTS = {ZAO_BAN, ZAO_SAN, XING_ZHENG, BAI_BAN, ZAO_ZAO_IM, XING_ZHENG_JD, ZAO_ZAO_2}
@@ -122,7 +123,7 @@ class ScheduleEngine:
         for row in range(2, ws.max_row + 1):
             name = str(ws.cell(row=row, column=1).value or '').strip()
             role = str(ws.cell(row=row, column=3).value or '').strip()
-            if not name or role in ('', '合计', '班长') or name.startswith('='):
+            if not name or role in ('', '合计') or name.startswith('='):
                 continue
 
             shifts = []
@@ -312,28 +313,214 @@ class ScheduleEngine:
 
     # ── 1. 班长排班 ──
 
+    def _banzhang_valid(self, sched):
+        """检查班长排班是否满足约束：连上≤6，连休≤2"""
+        mw, mr = self._streak_stats(sched)
+        return mw <= 6 and mr <= 2
+
+    def _calc_banzhang_hours(self, sched):
+        """计算班长排班的总工时"""
+        h = 0.0
+        for d in range(1, self.num_days + 1):
+            shift = sched[d - 1]
+            if shift == CHANG_BAI:
+                h += 11.5
+            elif shift == CHANG_BAI_ZAO:
+                h += 12
+            elif shift == XING_ZHENG:
+                h += 8
+        return h
+
     def _generate_banzhang(self):
         # 按 primary 分类：行政班 + 长白班
         xingzheng_people = [p for p in self.banzhang if p.get('primary') == '行政']
         changbai_people = [p for p in self.banzhang if p.get('primary') == '长白']
+        pm = self.prev_month_data
 
-        def changbai_pattern_a(day):
-            """第一位长白：上2休2，从 day1 开始"""
-            return ((day - 1) % 4) in [0, 1]
+        # ── 1. 确定跨月衔接：上月各长白位置在月末的上2休2相位 ──
+        # 4天周期: 上(0)→上(1)→休(2)→休(3)
+        prev_month = self.month - 1 if self.month > 1 else 12
+        prev_idx = (prev_month - 6) % 3
+        # 上月长白位置的人员（按 BANZHANG_POOL 顺序，跳过行政角色）
+        prev_changbai_names = []
+        for i, p in enumerate(ScheduleEngine.BANZHANG_POOL):
+            if i != prev_idx:
+                prev_changbai_names.append(p['name'])
 
-        def changbai_pattern_b(day):
-            """第二位长白：上2休2，从 day3 开始，奇数月补 day1"""
-            return ((day - 3) % 4) in [0, 1] or day == 1
+        # 为每个长白位置确定 Day1 在周期中的相位偏移
+        position_offset = []  # offset ∈ {0,1,2,3}
+        for pos_idx in range(2):
+            prev_name = prev_changbai_names[pos_idx]
+            if pm and prev_name:
+                ws_val = pm.get('work_streak', {}).get(prev_name, 0)
+                rs_val = pm.get('rest_streak', {}).get(prev_name, 0)
+                if ws_val > 0:
+                    # 上月月末在上班：ws=1→位置0(上班第1天), ws=2→位置1(上班第2天)
+                    # offset = 下一位置 = ws_val (1→1, 2→2)
+                    offset = ws_val
+                elif rs_val > 0:
+                    # 上月月末在休息：rs=1→位置2(休息第1天), rs=2→位置3(休息第2天)
+                    # offset = 下一位置 = (2 + rs_val) % 4 (1→3, 2→0)
+                    offset = (2 + rs_val) % 4
+                else:
+                    offset = 0 if pos_idx == 0 else 2
+            else:
+                # 无上月数据，回退默认：长白1从上班开始(offset=0)，长白2从休息开始(offset=2)
+                offset = 0 if pos_idx == 0 else 2
+            position_offset.append(offset)
 
+        # ── 2. 生成基础排班（上2休2 + 跨月衔接）──
         schedules = {p['name']: [None] * self.num_days for p in self.banzhang}
-        for day in range(1, self.num_days + 1):
-            for p in xingzheng_people:
+
+        # 行政班：工作日行政，休息日休
+        for p in xingzheng_people:
+            for day in range(1, self.num_days + 1):
                 schedules[p['name']][day - 1] = XING_ZHENG if self.is_workday(day) else XI
-            # 长白人员按顺序分配不同 pattern
-            for i, p in enumerate(changbai_people):
-                fn = changbai_pattern_a if i == 0 else changbai_pattern_b
-                schedules[p['name']][day - 1] = CHANG_BAI if fn(day) else XI
+
+        # 长白班：按上月衔接相位延续上2休2
+        for pos_idx, person in enumerate(changbai_people):
+            name = person['name']
+            offset = position_offset[pos_idx]
+            for day in range(1, self.num_days + 1):
+                pos = (day - 1 + offset) % 4
+                # pos 0,1 = 长白班（上班）, pos 2,3 = 休
+                schedules[name][day - 1] = CHANG_BAI if pos < 2 else XI
+
+        # ── 3. 动态工时调整 ──
+        workday_count = sum(1 for d in range(1, self.num_days + 1) if self.is_workday(d))
+        standard_hours = workday_count * 8
+
+        for person in changbai_people:
+            name = person['name']
+            sched = schedules[name]
+            current_hours = self._calc_banzhang_hours(sched)
+            deficit = standard_hours - current_hours  # >0 工时不足，<0 工时超出
+
+            if abs(deficit) <= 2:
+                continue  # 偏差在2h内，接受
+
+            if deficit > 0:
+                # 工时不足 → 补班（只补工作日，不补周末节假日）
+                self._adjust_banzhang_add(sched, deficit)
+            else:
+                # 工时超出 → 减班
+                self._adjust_banzhang_reduce(sched, -deficit)
+
         return schedules
+
+    def _adjust_banzhang_add(self, sched, deficit):
+        """工时不足时补班：休息→行政(+8h) / 休息→长白(+11.5h) / 长白→长白早(+0.5h)。
+        补班只补工作日（is_workday=True），周末节假日不补。"""
+        workday_rest = sorted([d for d in range(1, self.num_days + 1)
+                               if sched[d - 1] == XI and self.is_workday(d)])
+        changbai_days = sorted([d for d in range(1, self.num_days + 1)
+                                if sched[d - 1] == CHANG_BAI])
+
+        # 迭代：每次选最优的单次操作，直到偏差≤2h或无有效操作
+        while abs(deficit) > 2:
+            best_action = None  # (type, day, new_deficit)
+            best_remaining = abs(deficit)
+
+            # 尝试 休息→长白 (+11.5h)
+            for d in workday_rest:
+                test = list(sched)
+                test[d - 1] = CHANG_BAI
+                if self._banzhang_valid(test):
+                    nd = deficit - 11.5
+                    if abs(nd) < best_remaining:
+                        best_remaining = abs(nd)
+                        best_action = ('rest_to_changbai', d, nd)
+
+            # 尝试 休息→行政 (+8h)
+            for d in workday_rest:
+                test = list(sched)
+                test[d - 1] = XING_ZHENG
+                if self._banzhang_valid(test):
+                    nd = deficit - 8
+                    if abs(nd) < best_remaining:
+                        best_remaining = abs(nd)
+                        best_action = ('rest_to_xingzheng', d, nd)
+
+            # 尝试 长白→长白早 (+0.5h)
+            for d in changbai_days:
+                test = list(sched)
+                test[d - 1] = CHANG_BAI_ZAO
+                if self._banzhang_valid(test):
+                    nd = deficit - 0.5
+                    if abs(nd) < best_remaining:
+                        best_remaining = abs(nd)
+                        best_action = ('changbai_to_zao', d, nd)
+
+            if best_action is None:
+                break  # 无有效操作，接受当前偏差
+
+            action_type, d, deficit = best_action
+            if action_type == 'rest_to_changbai':
+                sched[d - 1] = CHANG_BAI
+                workday_rest.remove(d)
+                changbai_days.append(d)
+            elif action_type == 'rest_to_xingzheng':
+                sched[d - 1] = XING_ZHENG
+                workday_rest.remove(d)
+            elif action_type == 'changbai_to_zao':
+                sched[d - 1] = CHANG_BAI_ZAO
+                changbai_days.remove(d)
+
+    def _adjust_banzhang_reduce(self, sched, excess):
+        """工时超出时减班：长白→行政(-3.5h) / 长白→休息(-11.5h) / 长白早→长白(-0.5h)。"""
+        changbai_days = sorted([d for d in range(1, self.num_days + 1)
+                                if sched[d - 1] == CHANG_BAI], reverse=True)
+        changbai_zao_days = sorted([d for d in range(1, self.num_days + 1)
+                                     if sched[d - 1] == CHANG_BAI_ZAO], reverse=True)
+
+        while abs(excess) > 2:
+            best_action = None
+            best_remaining = abs(excess)
+
+            # 尝试 长白→行政 (-3.5h)
+            for d in changbai_days:
+                test = list(sched)
+                test[d - 1] = XING_ZHENG
+                if self._banzhang_valid(test):
+                    nd = excess - 3.5
+                    if abs(nd) < best_remaining:
+                        best_remaining = abs(nd)
+                        best_action = ('changbai_to_xingzheng', d, nd)
+
+            # 尝试 长白早→长白 (-0.5h)
+            for d in changbai_zao_days:
+                test = list(sched)
+                test[d - 1] = CHANG_BAI
+                if self._banzhang_valid(test):
+                    nd = excess - 0.5
+                    if abs(nd) < best_remaining:
+                        best_remaining = abs(nd)
+                        best_action = ('zao_to_changbai', d, nd)
+
+            # 尝试 长白→休息 (-11.5h)
+            for d in changbai_days:
+                test = list(sched)
+                test[d - 1] = XI
+                if self._banzhang_valid(test):
+                    nd = excess - 11.5
+                    if abs(nd) < best_remaining:
+                        best_remaining = abs(nd)
+                        best_action = ('changbai_to_rest', d, nd)
+
+            if best_action is None:
+                break
+
+            action_type, d, excess = best_action
+            if action_type == 'changbai_to_xingzheng':
+                sched[d - 1] = XING_ZHENG
+                changbai_days.remove(d)
+            elif action_type == 'zao_to_changbai':
+                sched[d - 1] = CHANG_BAI
+                changbai_zao_days.remove(d)
+                changbai_days.append(d)
+            elif action_type == 'changbai_to_rest':
+                sched[d - 1] = XI
+                changbai_days.remove(d)
 
     # ── 2. 专职分销排班 ──
 
@@ -637,9 +824,27 @@ class ScheduleEngine:
 
     # ── 6. 在线轮转排班 ──
 
+    @staticmethod
+    def _pick_balanced_shift(pool, shift_type_counts, name, rng):
+        """从班次池中选择该员工做得最少的班次类型，尽量均衡分配"""
+        if not pool:
+            return None
+        if shift_type_counts is None:
+            # 无均衡数据时回退到随机 pop
+            return pool.pop()
+        person_counts = shift_type_counts.get(name, {})
+        unique_types = list(set(pool))
+        rng.shuffle(unique_types)
+        unique_types.sort(key=lambda s: person_counts.get(s, 0))
+        chosen = unique_types[0]
+        pool.remove(chosen)
+        person_counts[chosen] = person_counts.get(chosen, 0) + 1
+        shift_type_counts[name] = person_counts
+        return chosen
+
     def _assign_shifts_for_day(self, working, day, prev_shift, rest_days, fenxiao_rest_days,
                                 schedules, balance=None, jd_count=None, wan2_count=None,
-                                zaozao2_count=None):
+                                zaozao2_count=None, shift_type_counts=None):
         rng_day = random.Random(day * 137 + 42)
         n_workers = len(working)
 
@@ -690,20 +895,20 @@ class ScheduleEngine:
         assignments = {}
         for p in restricted:
             if late_pool:
-                assignments[p['name']] = late_pool.pop()
+                assignments[p['name']] = self._pick_balanced_shift(late_pool, shift_type_counts, p['name'], rng_day)
             else:
                 free.append(p)
 
         n_late = min(len(late_pool), len(free))
         for p in free[:n_late]:
             if late_pool:
-                assignments[p['name']] = late_pool.pop()
+                assignments[p['name']] = self._pick_balanced_shift(late_pool, shift_type_counts, p['name'], rng_day)
 
         for p in free[n_late:]:
             if early_pool:
-                assignments[p['name']] = early_pool.pop()
+                assignments[p['name']] = self._pick_balanced_shift(early_pool, shift_type_counts, p['name'], rng_day)
             elif late_pool:
-                assignments[p['name']] = late_pool.pop()
+                assignments[p['name']] = self._pick_balanced_shift(late_pool, shift_type_counts, p['name'], rng_day)
 
         if wan2_count is not None:
             late_assigned = [(p, assignments[p['name']]) for p in working
@@ -750,10 +955,9 @@ class ScheduleEngine:
 
         unassigned = [p for p in working if p['name'] not in assignments]
         leftover = early_pool + late_pool
-        rng_day.shuffle(leftover)
         for p in unassigned:
             if leftover:
-                assignments[p['name']] = leftover.pop()
+                assignments[p['name']] = self._pick_balanced_shift(leftover, shift_type_counts, p['name'], rng_day)
             else:
                 assignments[p['name']] = XING_ZHENG
 
@@ -2318,6 +2522,79 @@ class ScheduleEngine:
                 if ocount <= rest_target:
                     break
 
+        # Phase 5.11: 休息需求交换优化
+        _p511_reqs = getattr(self, 'rest_requests', {}) or {}
+        if _p511_reqs:
+            for _round in range(20):
+                any_swap = False
+                for name in _p511_reqs:
+                    requested = _p511_reqs[name]
+                    best_swap = None
+                    best_score = -1
+                    for md in requested:
+                        if md in rest_days[name]:
+                            continue
+                        s_pm = pm.get('work_streak', {}).get(name, 0)
+                        for giver in self.online_staff:
+                            gname = giver['name']
+                            if gname == name:
+                                continue
+                            if md not in rest_days[gname]:
+                                continue
+                            if md in _p511_reqs.get(gname, []):
+                                continue
+                            if md in forced_rest_days.get(gname, set()):
+                                continue
+                            g_pm = pm.get('work_streak', {}).get(gname, 0)
+                            for give_day in sorted(rest_days[name]):
+                                if give_day in rest_days[gname]:
+                                    continue
+                                # 仅当有跨月风险(prev_ws>0)时才保护强制休息日
+                                # 无跨月风险的人被误标forced也不应阻止交换
+                                if give_day in forced_rest_days.get(name, set()) and s_pm > 0:
+                                    continue
+                                # 需求人员只能用非需求日交换，不能给出自己申请的需求日
+                                if give_day in _p511_reqs.get(name, []):
+                                    continue
+                                ts = (rest_days[name] | {md}) - {give_day}
+                                tf = (rest_days[gname] | {give_day}) - {md}
+                                ts_wm = [d not in ts for d in range(1, self.num_days + 1)]
+                                tf_wm = [d not in tf for d in range(1, self.num_days + 1)]
+                                if self._max_consecutive(ts_wm) > 5:
+                                    continue
+                                if self._max_consecutive(tf_wm) > 5:
+                                    continue
+                                ts_rm = [d in ts for d in range(1, self.num_days + 1)]
+                                tf_rm = [d in tf for d in range(1, self.num_days + 1)]
+                                if self._max_consecutive(ts_rm) > 2:
+                                    continue
+                                if self._max_consecutive(tf_rm) > 2:
+                                    continue
+                                s_cons = 0
+                                for w in ts_wm:
+                                    if w: s_cons += 1
+                                    else: break
+                                f_cons = 0
+                                for w in tf_wm:
+                                    if w: f_cons += 1
+                                    else: break
+                                if s_pm + s_cons > 5:
+                                    continue
+                                if g_pm > 0 and g_pm + f_cons > 5:
+                                    continue
+                                score = 5 - g_pm
+                                if score > best_score:
+                                    best_score = score
+                                    best_swap = (md, gname, give_day)
+                    if best_swap is not None:
+                        md, gname, give_day = best_swap
+                        rest_days[name] = (rest_days[name] | {md}) - {give_day}
+                        rest_days[gname] = (rest_days[gname] | {give_day}) - {md}
+                        forced_rest_days.setdefault(name, set()).add(md)
+                        any_swap = True
+                if not any_swap:
+                    break
+
         _tick("Phase 6")
         # Phase 6: Assign shifts
         schedules = {p['name']: [XI] * self.num_days for p in self.online_staff}
@@ -2329,6 +2606,7 @@ class ScheduleEngine:
         jd_count = {p['name']: 0 for p in self.online_staff}
         wan2_count = {p['name']: 0 for p in self.online_staff}
         zaozao2_count = {p['name']: 0 for p in self.online_staff}
+        shift_type_counts = {p['name']: {} for p in self.online_staff}
 
         for day in range(1, self.num_days + 1):
             working = [p for p in self.online_staff if day not in rest_days[p['name']]]
@@ -2336,7 +2614,7 @@ class ScheduleEngine:
                 _tick(f"Phase 6 day 1 start, n_workers={len(working)}")
             self._assign_shifts_for_day(working, day, prev_shift, rest_days,
                                         fenxiao_rest_days, schedules, balance, jd_count, wan2_count,
-                                        zaozao2_count)
+                                        zaozao2_count, shift_type_counts)
             for p in working:
                 prev_shift[p['name']] = schedules[p['name']][day - 1]
             for p in self.online_staff:
@@ -2356,6 +2634,64 @@ class ScheduleEngine:
                                 schedules[name][day], schedules[pp['name']][day] = \
                                     schedules[pp['name']][day], schedules[name][day]
                                 break
+
+        # Post-fix: 需求人员未满足的请求日避免关键班次（早早2、晚二），优先换行政班
+        _rest_reqs = getattr(self, 'rest_requests', {}) or {}
+        if _rest_reqs:
+            _critical = {ZAO_ZAO_2, WAN_ER}
+            _admin_shifts = {XING_ZHENG}
+            for name, req_days in _rest_reqs.items():
+                if name not in schedules:
+                    continue
+                for day in req_days:
+                    if day in rest_days.get(name, set()):
+                        continue  # 需求已满足
+                    shift = schedules[name][day - 1]
+                    if shift not in _critical:
+                        continue  # 不是关键班次，无需处理
+                    # 找同天可换的同事：优先行政班，其次任意非关键班次
+                    coworkers = []
+                    for pp in self.online_staff:
+                        pname = pp['name']
+                        if pname == name:
+                            continue
+                        if day in rest_days.get(pname, set()):
+                            continue  # 同事休息
+                        coworker_shift = schedules[pname][day - 1]
+                        if coworker_shift in _critical:
+                            continue  # 同事也是关键班次，换了没意义
+                        if coworker_shift == XI:
+                            continue
+                        # 同事的这一天也不是他自己的未满足需求日
+                        if day in _rest_reqs.get(pname, []):
+                            continue
+                        # 检查交换后双方都不会产生晚接早
+                        # 需求人员拿到 coworker_shift
+                        ok = True
+                        if coworker_shift in EARLY_SHIFTS and day > 1:
+                            if schedules[name][day - 2] in LATE_SHIFTS:
+                                ok = False
+                        if coworker_shift in LATE_SHIFTS and day < self.num_days:
+                            if schedules[name][day] in EARLY_SHIFTS:
+                                ok = False
+                        # 同事拿到 critical shift
+                        if shift in EARLY_SHIFTS and day > 1:
+                            if schedules[pname][day - 2] in LATE_SHIFTS:
+                                ok = False
+                        if shift in LATE_SHIFTS and day < self.num_days:
+                            if schedules[pname][day] in EARLY_SHIFTS:
+                                ok = False
+                        if not ok:
+                            continue
+                        is_admin = coworker_shift in _admin_shifts
+                        coworkers.append((is_admin, pname, coworker_shift))
+                    if not coworkers:
+                        continue
+                    # 优先行政班，其次任意非关键班次
+                    coworkers.sort(key=lambda x: (0 if x[0] else 1, x[2]))
+                    swap_name = coworkers[0][1]
+                    schedules[name][day - 1], schedules[swap_name][day - 1] = \
+                        schedules[swap_name][day - 1], schedules[name][day - 1]
 
         # 最终诊断：输出所有缺口
         dw_final = self._daily_workers(rest_days)
@@ -2635,6 +2971,7 @@ class ScheduleEngine:
             ZAO_ZAO_IM: 'FFFF00', WAN_YI_IM: 'FFFF00', XING_ZHENG_JD: 'EE822F',
             ZAO_ZAO_2: 'D1C4E9',
             CHANG_BAI: 'FFFFFF',
+            CHANG_BAI_ZAO: 'FFF9C4',
         }
 
         row = 1
