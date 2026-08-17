@@ -4543,18 +4543,29 @@ function handlePromoFile(e) {
       var wb = XLSX.read(ev.target.result, { type: 'array' });
       var ws = wb.Sheets[wb.SheetNames[0]];
       var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      // 跳过2行表头，B列(1)=姓名，AQ列(42)=绩效分数
+      // 在表头行中搜索分数列：同时匹配「绩效分数」和「排名分数」
+      var scoreCol = 42;  // 默认 AQ 列
+      for (var h = 0; h < Math.min(2, rows.length); h++) {
+        var headerRow = rows[h];
+        for (var c = 0; c < headerRow.length; c++) {
+          var hv = (headerRow[c] || '').toString();
+          if (hv.indexOf('绩效分数') !== -1 || hv.indexOf('排名分数') !== -1) {
+            scoreCol = c;
+            break;
+          }
+        }
+        if (scoreCol !== 42) break;
+      }
+      // 跳过2行表头，B列(1)=姓名，分数列动态匹配
       _promoEntries = [];
       for (var i = 2; i < rows.length; i++) {
         var row = rows[i];
         var name = (row[1] || '').toString().trim();
-        var score = parseFloat(row[42]) || 0;
+        var score = parseFloat(row[scoreCol]) || 0;
         if (!name) continue;
-        // 检测橘色背景(大夜): 通过 openpyxl 预处理的标记
+        // 大夜由前端「当月大夜」手动管理，不再从 Excel 颜色检测
         _promoEntries.push({ name: name, score: score, is_night_shift: false });
       }
-      // 尝试检测橘色大夜行 (通过单元格样式)
-      detectNightShift(ws, rows);
       var st = document.getElementById('promoUploadStatus');
       st.style.display = '';
       st.style.color = 'var(--mint)';
@@ -4598,8 +4609,9 @@ function importPerformanceData() {
   }).then(function(r) { return r.json(); }).then(function(data) {
     if (data.success) {
       alert(data.message);
-      loadRanking();
-      loadPromoHistory();
+      loadPromoHistory(true);  // 跳过自动跳转，保留用户选择的月份
+      loadRanking(year, month);
+      loadYearlyHistory();
     } else {
       alert('导入失败：' + data.error);
     }
@@ -4608,7 +4620,7 @@ function importPerformanceData() {
   });
 }
 
-function loadPromoHistory() {
+function loadPromoHistory(skipAutoLoad) {
   apiFetch('/api/performance/history').then(function(r) { return r.json(); }).then(function(data) {
     if (!data.success) return;
     var container = document.getElementById('promoHistoryTags');
@@ -4629,8 +4641,8 @@ function loadPromoHistory() {
     if (data.history.length === 0) {
       container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);">暂无历史数据</span>';
     }
-    // 默认加载最新月份
-    if (data.history.length > 0) {
+    // 默认加载最新月份（导入后跳过，保留用户选择的月份）
+    if (!skipAutoLoad && data.history.length > 0) {
       var latest = data.history[0];
       document.getElementById('promoYear').value = latest.year;
       document.getElementById('promoMonth').value = latest.month;

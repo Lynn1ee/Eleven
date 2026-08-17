@@ -99,9 +99,21 @@ def handle_import(handler, data):
 
 # ── 文件导入（含橘色大夜检测）──
 
+def _find_score_column(ws):
+    """在表头行（前2行）中搜索分数列，同时匹配「绩效分数」和「排名分数」。
+    返回列索引（0-based），两个列不会同时出现；都未找到则回退到 42（AQ列）。"""
+    for row in ws.iter_rows(min_row=1, max_row=2, values_only=True):
+        for col_idx, cell_value in enumerate(row):
+            if cell_value and isinstance(cell_value, str):
+                if "绩效分数" in cell_value or "排名分数" in cell_value:
+                    return col_idx
+    return 42  # 回退到默认 AQ 列
+
+
 def handle_import_file(handler, data):
     """POST /api/performance/import-file (multipart)
-    用 openpyxl 解析 Excel，检测橘色背景行作为大夜标记
+    用 openpyxl 解析 Excel，检测橘色背景行作为大夜标记。
+    自动识别表头中的「绩效分数」或「排名分数」列。
     """
     year = int(data.get("year", 0))
     month = int(data.get("month", 0))
@@ -114,10 +126,12 @@ def handle_import_file(handler, data):
     wb = openpyxl.load_workbook(io.BytesIO(file_data), data_only=True)
     ws = wb[wb.sheetnames[0]]
 
+    score_col = _find_score_column(ws)
+
     entries = []
     for row_idx, row in enumerate(ws.iter_rows(min_row=3, values_only=False), start=3):
         name_cell = row[1] if len(row) > 1 else None  # B列
-        score_cell = row[42] if len(row) > 42 else None  # AQ列
+        score_cell = row[score_col] if len(row) > score_col else None
 
         if not name_cell or not name_cell.value:
             continue
@@ -132,35 +146,38 @@ def handle_import_file(handler, data):
             except (ValueError, TypeError):
                 score = 0
 
-        # 检测橘色背景（大夜标记）
-        is_night = False
-        try:
-            fill = name_cell.fill
-            if fill and fill.fgColor and fill.fgColor.rgb:
-                rgb = str(fill.fgColor.rgb)
-                # 橘色相关色值
-                if rgb in ('FFFFC000', 'FFF4B084', 'FFED7D31', 'FFF4A460'):
-                    is_night = True
-        except Exception:
-            pass
-
+        # 大夜不再从 Excel 颜色自动检测，统一由前端「当月大夜」手动管理
         entries.append({
             "name": name,
             "score": score,
-            "is_night_shift": is_night,
+            "is_night_shift": False,
         })
 
     wb.close()
 
-    # 写入数据库
+    # 写入数据库：先清理当月不再存在于表格中的人员，再 upsert
     db = get_db()
+    imported_names = {e["name"] for e in entries}
+    existing = db.execute(
+        "SELECT name FROM performance_scores WHERE year = ? AND month = ?",
+        (year, month)
+    ).fetchall()
+    stale_names = {r["name"] for r in existing} - imported_names
+    if stale_names:
+        placeholders = ",".join("?" for _ in stale_names)
+        db.execute(
+            f"DELETE FROM performance_scores WHERE year = ? AND month = ? AND name IN ({placeholders})",
+            (year, month, *stale_names)
+        )
+
     for e in entries:
         db.execute("""
-            INSERT INTO performance_scores (name, year, month, score, is_night_shift)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO performance_scores (name, year, month, score, is_night_shift, historical_tier)
+            VALUES (?, ?, ?, ?, ?, '')
             ON CONFLICT(name, year, month) DO UPDATE SET
                 score = excluded.score,
-                is_night_shift = excluded.is_night_shift
+                is_night_shift = excluded.is_night_shift,
+                historical_tier = ''
         """, (e["name"], year, month, e["score"], 1 if e["is_night_shift"] else 0))
 
     db.commit()
@@ -419,6 +436,13 @@ def _load_ranking_history(db, current_year, current_month):
         ORDER BY ps.year, ps.month
     """).fetchall()
 
+    # 历史手动排除名单（当月大夜/支援等），与主排名流程一致
+    excl_rows = db.execute("SELECT name, year, month FROM ranking_exclusions").fetchall()
+    excluded_by_month = {}
+    for r in excl_rows:
+        ym = f"{r['year']}-{r['month']:02d}"
+        excluded_by_month.setdefault(ym, set()).add(r["name"])
+
     # 按年月分组
     by_month = {}
     for r in rows:
@@ -435,7 +459,7 @@ def _load_ranking_history(db, current_year, current_month):
     history = {}
     for ym, entries in by_month.items():
         active = [e for e in entries if e["name"] not in FIXED_EXCLUDED and e["score"] > 0]
-        ranking = [e for e in active if not e["is_night_shift"]]
+        ranking = [e for e in active if not e["is_night_shift"] and e["name"] not in excluded_by_month.get(ym, set())]
         ranking.sort(key=lambda x: x["score"], reverse=True)
         eff = len(active)
         vip_q = math.ceil(eff * 0.05)
@@ -445,7 +469,7 @@ def _load_ranking_history(db, current_year, current_month):
         for e in entries:
             if e["name"] not in history:
                 history[e["name"]] = {}
-            if e["name"] in FIXED_EXCLUDED or e["score"] == 0:
+            if e["name"] in FIXED_EXCLUDED or e["score"] == 0 or e["name"] in excluded_by_month.get(ym, set()):
                 history[e["name"]][ym] = None  # 不参与
             elif e["is_night_shift"]:
                 history[e["name"]][ym] = "大夜"
@@ -716,9 +740,12 @@ def handle_yearly_history(handler, data):
         if not month_scores:
             continue
         excl_in_month = excl_by_month.get(m, {})
-        ranking = [r for r in month_scores if r["name"] not in FIXED_EXCLUDED and r["score"] > 0
-                   and not r["is_night_shift"] and r["name"] not in excl_in_month and not r["historical_tier"]]
-        eff = len(ranking)
+        # 有效人数：排除固定名单和0分（与月度排名口径一致，包含大夜和排除人员）
+        active = [r for r in month_scores if r["name"] not in FIXED_EXCLUDED and r["score"] > 0]
+        # 参与排名的人员（排除大夜、手动排除、历史档位）
+        ranking = [r for r in active if not r["is_night_shift"]
+                   and r["name"] not in excl_in_month and not r["historical_tier"]]
+        eff = len(active)  # 配额按有效人数计算（含大夜和排除人员）
         ranking_sorted = sorted(ranking, key=lambda x: x["score"], reverse=True)
         vip_q = math.ceil(eff * 0.05)
         senior_q = math.ceil(eff * 0.30) - vip_q
@@ -929,6 +956,13 @@ def handle_add_exclusion(handler, data):
         INSERT INTO ranking_exclusions (name, year, month, reason) VALUES (?, ?, ?, ?)
         ON CONFLICT(name, year, month) DO UPDATE SET reason = excluded.reason
     """, (name, year, month, reason))
+    # 当月大夜：同步更新 performance_scores 的 is_night_shift 标记
+    if reason == "当月大夜":
+        db.execute("""
+            INSERT INTO performance_scores (name, year, month, score, is_night_shift)
+            VALUES (?, ?, ?, 0, 1)
+            ON CONFLICT(name, year, month) DO UPDATE SET is_night_shift = 1
+        """, (name, year, month))
     db.commit()
 
     rows = db.execute(
@@ -950,6 +984,16 @@ def handle_remove_exclusion(handler, data):
         return 400, {"success": False, "error": "缺少 name/year/month"}
 
     db = get_db()
+    # 如果是当月大夜，同步清除 performance_scores 的 is_night_shift 标记
+    existing = db.execute(
+        "SELECT reason FROM ranking_exclusions WHERE name = ? AND year = ? AND month = ?",
+        (name, year, month)
+    ).fetchone()
+    if existing and existing["reason"] == "当月大夜":
+        db.execute(
+            "UPDATE performance_scores SET is_night_shift = 0 WHERE name = ? AND year = ? AND month = ?",
+            (name, year, month)
+        )
     db.execute(
         "DELETE FROM ranking_exclusions WHERE name = ? AND year = ? AND month = ?",
         (name, year, month)
