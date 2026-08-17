@@ -160,6 +160,23 @@
 <script>
 var API_BASE = window.location.origin;
 
+function getToken() {
+  return localStorage.getItem('admin_session_token') || '';
+}
+
+function authFetch(url) {
+  var headers = {};
+  var token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(url, { headers: headers }).then(function(r) {
+    if (r.status === 401) {
+      window.location.href = '/login.html';
+      throw new Error('请重新登录');
+    }
+    return r;
+  });
+}
+
 function getParam(name) {
   var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
   return m ? decodeURIComponent(m[1]) : '';
@@ -191,8 +208,8 @@ if (!cycleId) {
 
 function loadData() {
   Promise.all([
-    fetch(API_BASE + '/api/invoice/cycles').then(function(r) { return r.json(); }),
-    fetch(API_BASE + '/api/invoice/records?cycle_id=' + cycleId).then(function(r) { return r.json(); })
+    authFetch(API_BASE + '/api/invoice/cycles').then(function(r) { return r.json(); }),
+    authFetch(API_BASE + '/api/invoice/records?cycle_id=' + cycleId).then(function(r) { return r.json(); })
   ]).then(function(results) {
     var cyclesData = results[0];
     var recordsData = results[1];
@@ -219,10 +236,12 @@ function loadData() {
 }
 
 function pngUrl(filePath) {
-  return API_BASE + '/api/invoice-png?cycle_id=' + cycleId + '&file=' + encodeURIComponent(filePath);
+  var token = getToken();
+  return API_BASE + '/api/invoice-png?cycle_id=' + cycleId + '&file=' + encodeURIComponent(filePath) + '&token=' + encodeURIComponent(token);
 }
 function fileUrl(filePath) {
-  return API_BASE + '/api/invoice-file?cycle_id=' + cycleId + '&file=' + encodeURIComponent(filePath);
+  var token = getToken();
+  return API_BASE + '/api/invoice-file?cycle_id=' + cycleId + '&file=' + encodeURIComponent(filePath) + '&token=' + encodeURIComponent(token);
 }
 
 function isPrinted(recordId) {

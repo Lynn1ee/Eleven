@@ -521,7 +521,7 @@ class MessageHandler:
         if prev_app_token and prev_state_file.exists():
             self._migrate_current_month_data(prev_app_token, prev_state_file)
 
-        print(f"[AUTO] {month_str} Base 创建完成: {app_token}")
+        print(f"[AUTO] {month_str} Base 创建完成: {app_token[:8]}...")
         return True
 
     def _migrate_current_month_data(self, prev_app_token: str, prev_state_file: Path):
@@ -1898,6 +1898,7 @@ def create_event_handler(feishu: FeishuClient, handler: MessageHandler):
 
     event_handler = EventDispatcherHandler.builder(FEISHU_ENCRYPT_KEY, FEISHU_VERIFICATION_TOKEN)\
         .register_p2_im_message_receive_v1(on_message_receive)\
+        .register_p2_im_message_message_read_v1(lambda event: None)\
         .build()
 
     return event_handler
@@ -1946,7 +1947,7 @@ if __name__ == "__main__":
         print("❌ 无法创建当月 Base，请检查飞书 API 凭证和权限")
         sys.exit(1)
 
-    print(f"  Base: {handler._state['app_token']}")
+    print(f"  Base: {handler._state['app_token'][:8]}...")
     print(f"  表1: {handler._state['table1_id']}")
     print(f"  表2: {handler._state['table2_id']}")
     print("\n启动定时提醒 (14:55 / 23:55)...")

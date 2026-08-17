@@ -8,17 +8,19 @@ import time
 import logging
 import atexit
 import traceback
+from logging.handlers import RotatingFileHandler
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(SCRIPT_DIR, 'watchdog.log')
 WATCHDOG_PID_FILE = os.path.join(SCRIPT_DIR, '.watchdog.pid')
 LAUNCHER_PID_FILE = os.path.join(SCRIPT_DIR, '.launcher.pid')
 
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format='%(asctime)s %(message)s'
+_handler = RotatingFileHandler(
+    LOG_FILE,
+    maxBytes=10 * 1024 * 1024, backupCount=3, encoding='utf-8'
 )
+_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 
 PORT = 8899
 NO_WINDOW = subprocess.CREATE_NO_WINDOW

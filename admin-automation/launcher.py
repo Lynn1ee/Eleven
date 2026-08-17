@@ -2,16 +2,18 @@
 import sys
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 # 日志写入文件，避免 pythonw 无控制台时静默崩溃
-logging.basicConfig(
-    filename=os.path.join(SCRIPT_DIR, 'launcher.log'),
-    level=logging.INFO,
-    format='%(asctime)s %(message)s'
+_handler = RotatingFileHandler(
+    os.path.join(SCRIPT_DIR, 'launcher.log'),
+    maxBytes=10 * 1024 * 1024, backupCount=3, encoding='utf-8'
 )
+_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logging.info(f'Launcher started (PID {os.getpid()})')
 
 # 写 PID 文件

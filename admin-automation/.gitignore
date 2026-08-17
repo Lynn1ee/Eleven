@@ -1,0 +1,26 @@
+# 敏感信息（密钥、证书、数据库）
+data/*.key
+data/*.crt
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/invoices/
+*.db
+
+# 运行时文件
+.launcher.pid
+.watchdog.pid
+
+# 日志
+*.log
+*.log.*
+startup_output.txt
+
+# 调试残留
+data/_*.js
+data/_*.txt
+data/_*.json
+
+# Python 缓存
+__pycache__/
+*.pyc

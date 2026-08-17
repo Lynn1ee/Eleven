@@ -41,9 +41,53 @@ def _get_lan_ip():
 
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
+    # 无需登录即可访问的 API（登录、服务器信息、员工免登录上传发票）
+    PUBLIC_API_PATHS = {
+        "/api/login", "/api/server-info",
+        "/api/invoice/cycles",
+        "/api/invoice/upload", "/api/invoice/verify-upload",
+    }
+
+    def _get_user(self):
+        """从 Authorization header 或 query 参数提取 token 并校验，返回 user 或 None"""
+        from .auth import validate_token
+        token = self.headers.get("Authorization", "").replace("Bearer ", "").strip()
+        if not token:
+            token = parse_qs(urlparse(self.path).query).get("token", [""])[0].strip()
+        return validate_token(token) if token else None
+
+    def _check_auth(self):
+        """鉴权检查：公开路径放行，其余要求登录。返回 True=放行，False=已响应 401"""
+        path = urlparse(self.path).path
+        if not path.startswith("/api/") or path in self.PUBLIC_API_PATHS:
+            return True
+        if self._get_user():
+            return True
+        self._respond(401, {"success": False, "error": "未登录或登录已过期"})
+        return False
+
+    def _cors_origin(self):
+        """CORS 白名单：仅允许本机（localhost/127.0.0.1）与 file:// 场景，其余不返回"""
+        origin = self.headers.get("Origin", "")
+        if not origin:
+            return ""
+        if origin == "null" or "localhost" in origin or "127.0.0.1" in origin:
+            return origin
+        return ""
+
+    def _send_cors(self):
+        """发送 CORS 白名单头（无匹配 Origin 则不发送，即同源策略）"""
+        origin = self._cors_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+
+    def log_message(self, format, *args):
+        """关闭 http.server 默认访问日志：避免日志无限膨胀，并防止 URL 中的 token 泄露"""
+        pass
+
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
@@ -67,6 +111,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             return
         if path == "/xlsx.full.min.js":
             self._serve_xlsx_js()
+            return
+
+        if not self._check_auth():
             return
 
         try:
@@ -123,6 +170,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if not self._check_auth():
+            return
 
         try:
             # multipart/form-data 路由（需在 JSON 解析前处理）
@@ -214,6 +264,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self._check_auth():
+            return
+
         try:
             # 读取 DELETE 请求体（如果有）
             length = int(self.headers.get("Content-Length", 0))
@@ -240,6 +293,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_PUT(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if not self._check_auth():
+            return
 
         try:
             length = int(self.headers.get("Content-Length", 0))
@@ -365,7 +421,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", ct)
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._send_cors()
             self._set_no_cache()
             self.end_headers()
             self.wfile.write(data)
@@ -408,7 +464,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "image/png")
             self.send_header("Content-Length", str(len(img_bytes)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._send_cors()
             self._set_no_cache()
             self.end_headers()
             self.wfile.write(img_bytes)
@@ -427,7 +483,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.send_header("Content-Disposition", f'attachment; filename="{Header(filename, "utf-8").encode()}"')
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors()
         self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
         self.end_headers()
         self.wfile.write(excel_data.getvalue())
@@ -521,7 +577,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.send_header("Content-Disposition", f'attachment; filename="{Header(filename, "utf-8").encode()}"')
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors()
         self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
         self.end_headers()
         self.wfile.write(excel_data.getvalue())
@@ -537,7 +593,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         self.send_header("Content-Disposition", f'attachment; filename="{Header(filename, "utf-8").encode()}"')
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors()
         self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
         self.end_headers()
         self.wfile.write(word_data.getvalue())
@@ -686,7 +742,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def _respond(self, status, data):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_cors()
         self._set_no_cache()
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
